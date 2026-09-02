@@ -1,0 +1,20 @@
+# Visual Studio
+.vs/
+
+# Archivos compilados
+bin/
+obj/
+
+# Archivos de usuario de Visual Studio
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Archivos temporales
+*.sqlite
+*.cache
+
+# Build
+[Bb]in/
+[Oo]bj/
