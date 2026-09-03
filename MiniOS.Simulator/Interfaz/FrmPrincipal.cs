@@ -74,7 +74,7 @@ public sealed class FrmPrincipal : Form
         botones.Controls.Add(Boton("■  [ Detener ]", TemaMiniOS.VerdeOscuro, Detener));
         botones.Controls.Add(Boton("↻  [ Reiniciar ]", TemaMiniOS.VerdeAzulado, Reiniciar));
         botones.Controls.Add(Boton("»  [ Avanzar reloj ]", TemaMiniOS.VerdeAzulado, Avanzar));
-        botones.Controls.Add(Boton("⚙  [ Configuración ]", TemaMiniOS.VerdeOscuro, () => AbrirDetalle("Configuración", new[] { "Memoria total: 4096 MB", "Reloj automático: 1 segundo", "Planificación: FIFO" })));
+        botones.Controls.Add(Boton("⚙  [ Configuración ]", TemaMiniOS.VerdeOscuro, () => AbrirDetalle("Configuración", new[] { "Memoria total: 4096 MB", "Reloj automático: 1 segundo", "Planificación: módulo interactivo FCFS" })));
         principal.Controls.Add(Tarjeta("BOTONES PRINCIPALES", botones), 0, 4);
         return principal;
     }
@@ -88,9 +88,16 @@ public sealed class FrmPrincipal : Form
 
     private Control PanelProcesos()
     {
-        var p = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3 };
-        p.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); p.RowStyles.Add(new RowStyle(SizeType.Absolute, 36)); p.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
-        p.Controls.Add(lstProcesos, 0, 0); p.Controls.Add(BotonSecundario("＋ Nuevo proceso", NuevoProceso), 0, 1); p.Controls.Add(BotonSecundario("Ver detalles", () => AbrirDetalle("Procesos", kernel.Procesos)), 0, 2); return p;
+        var p = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4 };
+        p.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        p.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        p.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        p.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        p.Controls.Add(lstProcesos, 0, 0);
+        p.Controls.Add(BotonSecundario("＋ Nuevo proceso", NuevoProceso), 0, 1);
+        p.Controls.Add(BotonSecundario("⚙ Planificación de procesos", AbrirPlanificacion), 0, 2);
+        p.Controls.Add(BotonSecundario("Ver detalles", () => AbrirDetalle("Procesos", kernel.Procesos)), 0, 3);
+        return p;
     }
 
     private Control PanelMemoria()
@@ -103,6 +110,7 @@ public sealed class FrmPrincipal : Form
     private void Detener() { if (kernel.Estado == EstadoKernel.Detenido) return; kernel.Detener(); reloj.Stop(); Registrar("Kernel detenido y CPU liberada."); Actualizar(); }
     private void Reiniciar() { kernel.Reiniciar(); reloj.Start(); Registrar("Sistema reiniciado; recursos restaurados."); Actualizar(); }
     private void Avanzar() { if (kernel.Estado != EstadoKernel.Ejecutando) { Registrar("No se puede avanzar: el kernel está detenido.", TemaMiniOS.VerdeClaro); return; } kernel.AvanzarSegundo(); Registrar("Reloj avanzado manualmente."); Actualizar(); }
+
     private void NuevoProceso()
     {
         if (kernel.Estado != EstadoKernel.Ejecutando) { Registrar("Inicie el SO antes de crear procesos.", TemaMiniOS.VerdeClaro); return; }
@@ -111,6 +119,22 @@ public sealed class FrmPrincipal : Form
         var p = kernel.CrearProceso(dialogo.NombreProceso, dialogo.MemoriaMB);
         if (p is null) Registrar("Memoria insuficiente para crear el proceso.", TemaMiniOS.VerdeClaro);
         else Registrar($"Proceso {p.Nombre} (P{p.Id:00}) creado con {p.MemoriaMB} MB.");
+        Actualizar();
+    }
+
+    private void AbrirPlanificacion()
+    {
+        var relojEstabaActivo = reloj.Enabled;
+        if (relojEstabaActivo) reloj.Stop();
+
+        Registrar("Módulo de planificación de procesos abierto.");
+        using var ventana = new FrmPlanificacion();
+        ventana.ShowDialog(this);
+
+        if (relojEstabaActivo && kernel.Estado == EstadoKernel.Ejecutando)
+            reloj.Start();
+
+        Registrar("Módulo de planificación de procesos cerrado.");
         Actualizar();
     }
 
