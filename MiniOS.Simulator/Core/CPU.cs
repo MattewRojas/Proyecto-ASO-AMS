@@ -14,10 +14,8 @@ public sealed class CPU
 
     public void EjecutarTick()
     {
-        if (ProcesoActual is null) return;
-
-        if (ProcesoActual.TiempoInicio is null)
-            ProcesoActual.TiempoInicio = 0;
+        if (ProcesoActual is null)
+            return;
 
         ProcesoActual.TiempoRestante = Math.Max(0, ProcesoActual.TiempoRestante - 1);
         ProcesoActual.TiempoCpuRecibido++;
@@ -29,6 +27,7 @@ public sealed class CPU
     public Proceso? Liberar(bool terminar = false)
     {
         var anterior = ProcesoActual;
+
         if (anterior is not null && terminar)
             anterior.Estado = EstadoProceso.Terminado;
         else if (anterior is not null && anterior.Estado == EstadoProceso.Ejecutando)
