@@ -66,13 +66,14 @@ public sealed class FrmPlanificacion : Form
         BorderStyle = BorderStyle.None
     };
 
-    private readonly Label lblTiempo = Etiqueta("Tiempo: 0", 14, true);
-    private readonly Label lblCpu = Etiqueta("CPU: Libre", 12, true, TemaMiniOS.Verde);
-    private readonly Label lblRestante = Etiqueta("Ráfaga restante: -");
-    private readonly Label lblCola = Etiqueta("Cola de listos: vacía");
-    private readonly Label lblEspera = Etiqueta("Espera promedio: 0.00");
-    private readonly Label lblRespuesta = Etiqueta("Respuesta promedio: 0.00");
-    private readonly Label lblRetorno = Etiqueta("Retorno promedio: 0.00");
+    private readonly Label lblTiempo = Etiqueta("Tiempo: 0", 13, true);
+    private readonly Label lblCpu = Etiqueta("CPU: Libre", 10.5f, true, TemaMiniOS.Verde);
+    private readonly Label lblRestante = Etiqueta("Ráfaga restante: -", 8.8f);
+    private readonly Label lblCola = Etiqueta("Listos: vacía", 8.8f);
+    private readonly Label lblRegla = Etiqueta("FCFS: FIFO, no apropiativo.", 8.2f);
+    private readonly Label lblEspera = Etiqueta("Espera promedio: 0.00", 8.8f);
+    private readonly Label lblRespuesta = Etiqueta("Respuesta promedio: 0.00", 8.8f);
+    private readonly Label lblRetorno = Etiqueta("Retorno promedio: 0.00", 8.8f);
 
     private readonly RichTextBox rtbLog = new()
     {
@@ -104,6 +105,7 @@ public sealed class FrmPlanificacion : Form
         TemaMiniOS.Aplicar(this);
 
         cboAlgoritmo.Items.Add("FCFS - First Come, First Served");
+        cboAlgoritmo.Items.Add("SJF - Shortest Job First");
         cboAlgoritmo.SelectedIndex = 0;
 
         ConfigurarTabla();
@@ -114,6 +116,7 @@ public sealed class FrmPlanificacion : Form
         simulador.Algoritmo = AlgoritmoPlanificacion.FCFS;
         simulador.EventoGenerado += Registrar;
         temporizador.Tick += (_, _) => EjecutarTickAutomatico();
+        cboAlgoritmo.SelectedIndexChanged += (_, _) => CambiarAlgoritmo();
 
         CargarEjemplo();
     }
@@ -129,11 +132,11 @@ public sealed class FrmPlanificacion : Form
             BackColor = BackColor
         };
 
-        raiz.RowStyles.Add(new RowStyle(SizeType.Absolute, 62));
-        raiz.RowStyles.Add(new RowStyle(SizeType.Absolute, 118));
+        raiz.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
+        raiz.RowStyles.Add(new RowStyle(SizeType.Absolute, 108));
         raiz.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        raiz.RowStyles.Add(new RowStyle(SizeType.Absolute, 118));
-        raiz.RowStyles.Add(new RowStyle(SizeType.Absolute, 94));
+        raiz.RowStyles.Add(new RowStyle(SizeType.Absolute, 110));
+        raiz.RowStyles.Add(new RowStyle(SizeType.Absolute, 88));
 
         var titulo = Etiqueta("⚙  PLANIFICACIÓN DE PROCESOS", 20, true, TemaMiniOS.VerdeOscuro);
         titulo.Dock = DockStyle.Fill;
@@ -156,7 +159,7 @@ public sealed class FrmPlanificacion : Form
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
             AutoScroll = true,
-            Padding = new Padding(8, 2, 8, 2)
+            Padding = new Padding(8, 0, 8, 0)
         };
 
         flujo.Controls.Add(Campo("Algoritmo", cboAlgoritmo, 240));
@@ -168,14 +171,14 @@ public sealed class FrmPlanificacion : Form
 
         var agregar = BotonSecundario("＋ Agregar proceso", AgregarProceso);
         agregar.Width = 155;
-        agregar.Height = 36;
-        agregar.Margin = new Padding(10, 25, 4, 4);
+        agregar.Height = 34;
+        agregar.Margin = new Padding(10, 23, 4, 4);
         flujo.Controls.Add(agregar);
 
         var ejemplo = BotonSecundario("Cargar ejemplo", CargarEjemplo);
         ejemplo.Width = 135;
-        ejemplo.Height = 36;
-        ejemplo.Margin = new Padding(4, 25, 4, 4);
+        ejemplo.Height = 34;
+        ejemplo.Margin = new Padding(4, 23, 4, 4);
         flujo.Controls.Add(ejemplo);
 
         var tarjeta = Tarjeta("CONFIGURACIÓN DEL ESCENARIO", flujo);
@@ -190,7 +193,7 @@ public sealed class FrmPlanificacion : Form
             Dock = DockStyle.Fill,
             ColumnCount = 2,
             RowCount = 1,
-            Padding = new Padding(0, 6, 0, 6)
+            Padding = new Padding(0, 4, 0, 4)
         };
 
         centro.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 72));
@@ -211,9 +214,9 @@ public sealed class FrmPlanificacion : Form
             ColumnCount = 1
         };
 
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 120));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 96));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 124));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 100));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 98));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         var cpu = Vertical();
@@ -224,8 +227,8 @@ public sealed class FrmPlanificacion : Form
 
         var cola = Vertical();
         cola.Controls.Add(lblCola);
-        cola.Controls.Add(Etiqueta("FCFS utiliza una cola FIFO real y no es apropiativo.", 8.6f));
-        panel.Controls.Add(Tarjeta("COLA DE LISTOS", cola), 0, 1);
+        cola.Controls.Add(lblRegla);
+        panel.Controls.Add(Tarjeta("LISTOS / CRITERIO", cola), 0, 1);
 
         var metricas = Vertical();
         metricas.Controls.Add(lblEspera);
@@ -246,7 +249,7 @@ public sealed class FrmPlanificacion : Form
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
             AutoScroll = false,
-            Padding = new Padding(8, 4, 0, 0)
+            Padding = new Padding(8, 3, 0, 0)
         };
 
         botones.Controls.Add(BotonPrincipal("→  Paso", TemaMiniOS.VerdeAzulado, EjecutarPaso));
@@ -293,6 +296,24 @@ public sealed class FrmPlanificacion : Form
         });
     }
 
+    private void CambiarAlgoritmo()
+    {
+        DetenerAutomatico();
+
+        simulador.Algoritmo = cboAlgoritmo.SelectedIndex switch
+        {
+            1 => AlgoritmoPlanificacion.SJF,
+            _ => AlgoritmoPlanificacion.FCFS
+        };
+
+        if (procesosConfigurados.Count > 0)
+            simulador.CargarProcesos(procesosConfigurados);
+
+        rtbLog.Clear();
+        Registrar($"Algoritmo seleccionado: {simulador.NombreAlgoritmo}. Escenario reiniciado.");
+        ActualizarVista();
+    }
+
     private void AgregarProceso()
     {
         DetenerAutomatico();
@@ -333,7 +354,7 @@ public sealed class FrmPlanificacion : Form
 
         simulador.CargarProcesos(procesosConfigurados);
         rtbLog.Clear();
-        Registrar("Escenario FCFS de ejemplo cargado. Use Paso para observar cada unidad de CPU.");
+        Registrar($"Escenario de ejemplo cargado para {simulador.NombreAlgoritmo}. Use Paso para observar cada decisión.");
         ActualizarVista();
     }
 
@@ -387,7 +408,7 @@ public sealed class FrmPlanificacion : Form
 
         temporizador.Start();
         btnEjecutar.Text = "Ⅱ  Pausar";
-        Registrar("Ejecución automática iniciada.");
+        Registrar($"Ejecución automática {simulador.NombreAlgoritmo} iniciada.");
     }
 
     private void EjecutarTickAutomatico()
@@ -452,8 +473,14 @@ public sealed class FrmPlanificacion : Form
             : $"Ráfaga restante: {actual.TiempoRestante} / {actual.RafagaCPU}";
 
         lblCola.Text = simulador.ColaListos.Count == 0
-            ? "Cola de listos: vacía"
-            : "Cola de listos: " + string.Join("  →  ", simulador.ColaListos.Select(p => $"P{p.Id:00}"));
+            ? "Listos: vacía"
+            : "Listos: " + string.Join("  →  ", simulador.ColaListos.Select(p => $"P{p.Id:00}"));
+
+        lblRegla.Text = simulador.Algoritmo switch
+        {
+            AlgoritmoPlanificacion.SJF => "SJF: menor ráfaga disponible, no apropiativo.",
+            _ => "FCFS: FIFO, no apropiativo."
+        };
 
         lblEspera.Text = $"Espera promedio: {simulador.EsperaPromedio:F2}";
         lblRespuesta.Text = $"Respuesta promedio: {simulador.RespuestaPromedio:F2}";
@@ -512,7 +539,7 @@ public sealed class FrmPlanificacion : Form
                 TextAlign = ContentAlignment.MiddleCenter,
                 AutoSize = false,
                 Width = Math.Max(72, duracion * 36),
-                Height = 58,
+                Height = 54,
                 Margin = new Padding(3),
                 BackColor = esCpuLibre ? TemaMiniOS.Fondo : TemaMiniOS.VerdeClaro,
                 ForeColor = TemaMiniOS.VerdeOscuro,
@@ -542,8 +569,8 @@ public sealed class FrmPlanificacion : Form
             BackColor = TemaMiniOS.Blanco,
             ForeColor = TemaMiniOS.VerdeOscuro,
             Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-            Padding = new Padding(10),
-            Margin = new Padding(5)
+            Padding = new Padding(9),
+            Margin = new Padding(4)
         };
 
         contenido.Font = new Font("Segoe UI", 9.2f);
@@ -556,7 +583,7 @@ public sealed class FrmPlanificacion : Form
         Dock = DockStyle.Fill,
         FlowDirection = FlowDirection.TopDown,
         WrapContents = false,
-        Padding = new Padding(8, 4, 4, 4)
+        Padding = new Padding(5, 2, 2, 2)
     };
 
     private static Control Campo(string titulo, Control control, int ancho)
@@ -564,13 +591,13 @@ public sealed class FrmPlanificacion : Form
         var panel = new TableLayoutPanel
         {
             Width = ancho,
-            Height = 64,
+            Height = 60,
             RowCount = 2,
             ColumnCount = 1,
             Margin = new Padding(5)
         };
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 23));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
         panel.Controls.Add(Etiqueta(titulo, 8.8f, true), 0, 0);
         control.Dock = DockStyle.Fill;
         panel.Controls.Add(control, 0, 1);
@@ -583,7 +610,7 @@ public sealed class FrmPlanificacion : Form
         AutoSize = true,
         Font = new Font("Segoe UI", size, bold ? FontStyle.Bold : FontStyle.Regular),
         ForeColor = color ?? TemaMiniOS.VerdeOscuro,
-        Margin = new Padding(4)
+        Margin = new Padding(2)
     };
 
     private static Button BotonPrincipal(string texto, Color color, Action accion)
@@ -591,14 +618,14 @@ public sealed class FrmPlanificacion : Form
         var boton = new Button
         {
             Text = texto,
-            Size = new Size(170, 38),
+            Size = new Size(170, 36),
             BackColor = color,
             ForeColor = TemaMiniOS.Blanco,
             Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
             FlatStyle = FlatStyle.Flat,
             UseVisualStyleBackColor = false,
             Cursor = Cursors.Hand,
-            Margin = new Padding(6, 3, 6, 3)
+            Margin = new Padding(6, 2, 6, 2)
         };
         boton.FlatAppearance.BorderSize = 0;
         boton.Click += (_, _) => accion();
