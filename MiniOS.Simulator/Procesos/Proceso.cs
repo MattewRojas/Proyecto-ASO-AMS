@@ -6,14 +6,14 @@ public sealed class Proceso
     public string Nombre { get; init; } = "Proceso";
     public int MemoriaMB { get; init; }
 
-    // Datos necesarios para los algoritmos de planificación.
+    // Datos utilizados por los algoritmos de planificación.
     public int TiempoLlegada { get; set; }
     public int RafagaCPU { get; set; } = 1;
     public int TiempoRestante { get; set; } = 1;
     public int Prioridad { get; set; } = 1;
     public int Cola { get; set; }
 
-    public EstadoProceso Estado { get; set; } = EstadoProceso.Listo;
+    public EstadoProceso Estado { get; set; } = EstadoProceso.Nuevo;
 
     // Métricas de planificación.
     public int? TiempoInicio { get; set; }
@@ -34,7 +34,7 @@ public sealed class Proceso
         TiempoRespuesta = 0;
         TiempoRetorno = 0;
         TiempoCpuRecibido = 0;
-        Estado = EstadoProceso.Listo;
+        Estado = EstadoProceso.Nuevo;
     }
 
     public override string ToString() =>
