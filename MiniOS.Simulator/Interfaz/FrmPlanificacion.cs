@@ -5,7 +5,6 @@ public sealed class FrmPlanificacion : Form
     private readonly SimuladorPlanificacion simulador = new(new CPU());
     private readonly List<Proceso> procesosConfigurados = [];
     private readonly System.Windows.Forms.Timer temporizador = new() { Interval = 650 };
-
     private int siguienteId = 1;
 
     private readonly ComboBox cboAlgoritmo = new()
@@ -14,43 +13,11 @@ public sealed class FrmPlanificacion : Form
         Width = 205
     };
 
-    private readonly TextBox txtNombre = new()
-    {
-        Text = "Proceso",
-        Width = 125
-    };
-
-    private readonly NumericUpDown numLlegada = new()
-    {
-        Minimum = 0,
-        Maximum = 99,
-        Width = 72
-    };
-
-    private readonly NumericUpDown numRafaga = new()
-    {
-        Minimum = 1,
-        Maximum = 50,
-        Value = 4,
-        Width = 78
-    };
-
-    private readonly NumericUpDown numPrioridad = new()
-    {
-        Minimum = 1,
-        Maximum = 10,
-        Value = 1,
-        Width = 72
-    };
-
-    private readonly NumericUpDown numCola = new()
-    {
-        Minimum = 1,
-        Maximum = 3,
-        Value = 1,
-        Width = 62
-    };
-
+    private readonly TextBox txtNombre = new() { Text = "Proceso", Width = 125 };
+    private readonly NumericUpDown numLlegada = new() { Minimum = 0, Maximum = 99, Width = 72 };
+    private readonly NumericUpDown numRafaga = new() { Minimum = 1, Maximum = 50, Value = 4, Width = 78 };
+    private readonly NumericUpDown numPrioridad = new() { Minimum = 1, Maximum = 10, Value = 1, Width = 72 };
+    private readonly NumericUpDown numCola = new() { Minimum = 1, Maximum = 3, Value = 1, Width = 62 };
     private readonly NumericUpDown numQuantum = new()
     {
         Minimum = 1,
@@ -117,11 +84,11 @@ public sealed class FrmPlanificacion : Form
         cboAlgoritmo.Items.Add("FCFS - First Come, First Served");
         cboAlgoritmo.Items.Add("SJF - Shortest Job First");
         cboAlgoritmo.Items.Add("Round Robin");
+        cboAlgoritmo.Items.Add("Prioridad (1 = más alta)");
         cboAlgoritmo.SelectedIndex = 0;
 
         ConfigurarTabla();
         btnEjecutar = BotonPrincipal("▶  Ejecutar", TemaMiniOS.Verde, EjecutarPausar);
-
         Controls.Add(ConstruirInterfaz());
 
         simulador.Algoritmo = AlgoritmoPlanificacion.FCFS;
@@ -154,13 +121,12 @@ public sealed class FrmPlanificacion : Form
         var titulo = Etiqueta("⚙  PLANIFICACIÓN DE PROCESOS", 20, true, TemaMiniOS.VerdeOscuro);
         titulo.Dock = DockStyle.Fill;
         titulo.TextAlign = ContentAlignment.MiddleCenter;
-        raiz.Controls.Add(titulo, 0, 0);
 
+        raiz.Controls.Add(titulo, 0, 0);
         raiz.Controls.Add(ConstruirConfiguracion(), 0, 1);
         raiz.Controls.Add(ConstruirCentro(), 0, 2);
         raiz.Controls.Add(Tarjeta("LÍNEA DE TIEMPO / DIAGRAMA DE GANTT", pnlGantt), 0, 3);
         raiz.Controls.Add(ConstruirBotonera(), 0, 4);
-
         return raiz;
     }
 
@@ -183,14 +149,14 @@ public sealed class FrmPlanificacion : Form
         flujo.Controls.Add(Campo("Cola", numCola, 72));
         flujo.Controls.Add(Campo("Quantum", numQuantum, 80));
 
-        var agregar = BotonSecundario("＋ Agregar proceso", AgregarProceso);
+        var agregar = BotonSecundario("＋ Agregar", AgregarProceso);
         agregar.Width = 145;
         agregar.Height = 34;
         agregar.Margin = new Padding(8, 23, 4, 4);
         flujo.Controls.Add(agregar);
 
         var ejemplo = BotonSecundario("Cargar ejemplo", CargarEjemplo);
-        ejemplo.Width = 125;
+        ejemplo.Width = 135;
         ejemplo.Height = 34;
         ejemplo.Margin = new Padding(4, 23, 4, 4);
         flujo.Controls.Add(ejemplo);
@@ -212,10 +178,8 @@ public sealed class FrmPlanificacion : Form
 
         centro.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 72));
         centro.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28));
-
         centro.Controls.Add(Tarjeta("PROCESOS", dgvProcesos), 0, 0);
         centro.Controls.Add(ConstruirPanelEstado(), 1, 0);
-
         return centro;
     }
 
@@ -229,8 +193,6 @@ public sealed class FrmPlanificacion : Form
             GrowStyle = TableLayoutPanelGrowStyle.FixedSize
         };
 
-        // Alturas proporcionales: las tarjetas se adaptan al alto disponible
-        // y no dependen de que la ventana esté maximizada.
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 29));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 21));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 23));
@@ -240,7 +202,6 @@ public sealed class FrmPlanificacion : Form
         panel.Controls.Add(Tarjeta("LISTOS / CRITERIO", PanelEtiquetas(lblCola, lblRegla)), 0, 1);
         panel.Controls.Add(Tarjeta("MÉTRICAS", PanelEtiquetas(lblEspera, lblRespuesta, lblRetorno)), 0, 2);
         panel.Controls.Add(Tarjeta("LOG DE PLANIFICACIÓN", rtbLog), 0, 3);
-
         return panel;
     }
 
@@ -260,7 +221,6 @@ public sealed class FrmPlanificacion : Form
         botones.Controls.Add(BotonPrincipal("↻  Reiniciar", TemaMiniOS.VerdeAzulado, ReiniciarEjecucion));
         botones.Controls.Add(BotonPrincipal("⌫  Limpiar", TemaMiniOS.VerdeOscuro, Limpiar));
         botones.Controls.Add(BotonPrincipal("←  Volver", TemaMiniOS.VerdeOscuro, Close));
-
         return Tarjeta("CONTROLES DE SIMULACIÓN", botones);
     }
 
@@ -302,11 +262,11 @@ public sealed class FrmPlanificacion : Form
     private void CambiarAlgoritmo()
     {
         DetenerAutomatico();
-
         simulador.Algoritmo = cboAlgoritmo.SelectedIndex switch
         {
             1 => AlgoritmoPlanificacion.SJF,
             2 => AlgoritmoPlanificacion.RoundRobin,
+            3 => AlgoritmoPlanificacion.Prioridad,
             _ => AlgoritmoPlanificacion.FCFS
         };
 
@@ -324,12 +284,10 @@ public sealed class FrmPlanificacion : Form
     private void CambiarQuantum()
     {
         simulador.Quantum = (int)numQuantum.Value;
-
         if (simulador.Algoritmo != AlgoritmoPlanificacion.RoundRobin)
             return;
 
         DetenerAutomatico();
-
         if (procesosConfigurados.Count > 0)
             simulador.ReiniciarEjecucion();
 
@@ -341,12 +299,9 @@ public sealed class FrmPlanificacion : Form
     private void AgregarProceso()
     {
         DetenerAutomatico();
-
-        var nombre = string.IsNullOrWhiteSpace(txtNombre.Text)
-            ? $"Proceso {siguienteId}"
-            : txtNombre.Text.Trim();
-
+        var nombre = string.IsNullOrWhiteSpace(txtNombre.Text) ? $"Proceso {siguienteId}" : txtNombre.Text.Trim();
         var rafaga = (int)numRafaga.Value;
+
         procesosConfigurados.Add(new Proceso
         {
             Id = siguienteId++,
@@ -400,9 +355,7 @@ public sealed class FrmPlanificacion : Form
     private void EjecutarPaso()
     {
         DetenerAutomatico();
-
-        if (!HayProcesos())
-            return;
+        if (!HayProcesos()) return;
 
         if (simulador.Finalizado)
         {
@@ -417,8 +370,7 @@ public sealed class FrmPlanificacion : Form
 
     private void EjecutarPausar()
     {
-        if (!HayProcesos())
-            return;
+        if (!HayProcesos()) return;
 
         if (temporizador.Enabled)
         {
@@ -439,7 +391,6 @@ public sealed class FrmPlanificacion : Form
     {
         simulador.EjecutarPaso();
         ActualizarVista();
-
         if (simulador.Finalizado)
             DetenerAutomatico();
     }
@@ -447,9 +398,7 @@ public sealed class FrmPlanificacion : Form
     private void ReiniciarEjecucion()
     {
         DetenerAutomatico();
-
-        if (!HayProcesos())
-            return;
+        if (!HayProcesos()) return;
 
         rtbLog.Clear();
         simulador.ReiniciarEjecucion();
@@ -469,8 +418,7 @@ public sealed class FrmPlanificacion : Form
 
     private bool HayProcesos()
     {
-        if (simulador.Procesos.Count > 0)
-            return true;
+        if (simulador.Procesos.Count > 0) return true;
 
         MessageBox.Show(this, "Agregue al menos un proceso antes de ejecutar la simulación.",
             "MiniOS", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -486,30 +434,43 @@ public sealed class FrmPlanificacion : Form
     private void ActualizarVista()
     {
         lblTiempo.Text = $"Tiempo: {simulador.TiempoActual}";
-
         var actual = simulador.ProcesoActual;
-        lblCpu.Text = actual is null
-            ? "CPU: Libre"
-            : $"CPU: P{actual.Id:00} - {actual.Nombre}";
+
+        lblCpu.Text = actual is null ? "CPU: Libre" : $"CPU: P{actual.Id:00} - {actual.Nombre}";
         lblCpu.ForeColor = actual is null ? TemaMiniOS.Verde : TemaMiniOS.VerdeOscuro;
-        lblRestante.Text = actual is null
-            ? "Restante: -"
-            : $"Restante: {actual.TiempoRestante} / {actual.RafagaCPU}";
+        lblRestante.Text = actual is null ? "Restante: -" : $"Restante: {actual.TiempoRestante} / {actual.RafagaCPU}";
 
-        lblQuantum.Text = simulador.Algoritmo == AlgoritmoPlanificacion.RoundRobin
-            ? actual is null
+        lblQuantum.Text = simulador.Algoritmo switch
+        {
+            AlgoritmoPlanificacion.RoundRobin => actual is null
                 ? $"Quantum: {simulador.Quantum} (CPU libre)"
-                : $"Quantum restante: {simulador.QuantumRestante} / {simulador.Quantum}"
-            : "Quantum: no aplica";
+                : $"Quantum restante: {simulador.QuantumRestante} / {simulador.Quantum}",
+            AlgoritmoPlanificacion.Prioridad => actual is null
+                ? "Prioridad: - (1 = más alta)"
+                : $"Prioridad actual: {actual.Prioridad} (1 = más alta)",
+            _ => "Quantum: no aplica"
+        };
 
-        lblCola.Text = simulador.ColaListos.Count == 0
-            ? "Listos: vacía"
-            : "Listos: " + string.Join("  →  ", simulador.ColaListos.Select(p => $"P{p.Id:00}"));
+        if (simulador.ColaListos.Count == 0)
+        {
+            lblCola.Text = "Listos: vacía";
+        }
+        else if (simulador.Algoritmo == AlgoritmoPlanificacion.Prioridad)
+        {
+            lblCola.Text = "Listos: " + string.Join("  →  ",
+                simulador.ColaListos.Select(p => $"P{p.Id:00}(pr={p.Prioridad})"));
+        }
+        else
+        {
+            lblCola.Text = "Listos: " + string.Join("  →  ",
+                simulador.ColaListos.Select(p => $"P{p.Id:00}"));
+        }
 
         lblRegla.Text = simulador.Algoritmo switch
         {
             AlgoritmoPlanificacion.SJF => "SJF: menor ráfaga disponible, no apropiativo.",
             AlgoritmoPlanificacion.RoundRobin => $"RR: FIFO, apropiativo, quantum={simulador.Quantum}.",
+            AlgoritmoPlanificacion.Prioridad => "Prioridad: 1 es la más alta; apropiativo.",
             _ => "FCFS: FIFO, no apropiativo."
         };
 
@@ -524,18 +485,11 @@ public sealed class FrmPlanificacion : Form
     private void ActualizarTabla()
     {
         dgvProcesos.Rows.Clear();
-
         foreach (var p in simulador.Procesos.OrderBy(p => p.Id))
         {
             dgvProcesos.Rows.Add(
-                $"P{p.Id:00}",
-                p.Nombre,
-                p.TiempoLlegada,
-                p.RafagaCPU,
-                p.TiempoRestante,
-                p.Prioridad,
-                p.Cola,
-                p.Estado,
+                $"P{p.Id:00}", p.Nombre, p.TiempoLlegada, p.RafagaCPU, p.TiempoRestante,
+                p.Prioridad, p.Cola, p.Estado,
                 p.TiempoInicio?.ToString() ?? "-",
                 p.TiempoFinalizacion?.ToString() ?? "-",
                 p.TiempoEspera,
@@ -564,7 +518,7 @@ public sealed class FrmPlanificacion : Form
                 ? $"LIBRE\n{segmento.Inicio} - {segmento.Fin}"
                 : $"P{segmento.ProcesoId:00}\n{segmento.Inicio} - {segmento.Fin}";
 
-            var bloque = new Label
+            pnlGantt.Controls.Add(new Label
             {
                 Text = texto,
                 TextAlign = ContentAlignment.MiddleCenter,
@@ -576,9 +530,7 @@ public sealed class FrmPlanificacion : Form
                 ForeColor = TemaMiniOS.VerdeOscuro,
                 BorderStyle = BorderStyle.FixedSingle,
                 Font = new Font("Segoe UI", 9, FontStyle.Bold)
-            };
-
-            pnlGantt.Controls.Add(bloque);
+            });
         }
 
         pnlGantt.ResumeLayout();
