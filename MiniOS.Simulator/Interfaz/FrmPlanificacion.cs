@@ -85,6 +85,7 @@ public sealed class FrmPlanificacion : Form
         cboAlgoritmo.Items.Add("SJF - Shortest Job First");
         cboAlgoritmo.Items.Add("Round Robin");
         cboAlgoritmo.Items.Add("Prioridad (1 = más alta)");
+        cboAlgoritmo.Items.Add("Colas múltiples (C1 > C2 > C3)");
         cboAlgoritmo.SelectedIndex = 0;
 
         ConfigurarTabla();
@@ -267,6 +268,7 @@ public sealed class FrmPlanificacion : Form
             1 => AlgoritmoPlanificacion.SJF,
             2 => AlgoritmoPlanificacion.RoundRobin,
             3 => AlgoritmoPlanificacion.Prioridad,
+            4 => AlgoritmoPlanificacion.ColasMultiples,
             _ => AlgoritmoPlanificacion.FCFS
         };
 
@@ -326,10 +328,12 @@ public sealed class FrmPlanificacion : Form
         procesosConfigurados.Clear();
         siguienteId = 1;
 
-        AgregarProcesoEjemplo("Editor", 0, 5, 2, 1);
-        AgregarProcesoEjemplo("Navegador", 1, 3, 1, 1);
-        AgregarProcesoEjemplo("Compilador", 2, 4, 3, 2);
-        AgregarProcesoEjemplo("Calculadora", 4, 2, 2, 1);
+        // Las colas elegidas también sirven para demostrar Colas múltiples:
+        // P01 inicia en C3, luego llegan procesos de C2 y C1 que pueden desalojarlo.
+        AgregarProcesoEjemplo("Editor", 0, 5, 2, 3);
+        AgregarProcesoEjemplo("Navegador", 1, 3, 1, 2);
+        AgregarProcesoEjemplo("Compilador", 2, 4, 3, 1);
+        AgregarProcesoEjemplo("Calculadora", 4, 2, 2, 2);
 
         simulador.CargarProcesos(procesosConfigurados);
         rtbLog.Clear();
@@ -448,6 +452,9 @@ public sealed class FrmPlanificacion : Form
             AlgoritmoPlanificacion.Prioridad => actual is null
                 ? "Prioridad: - (1 = más alta)"
                 : $"Prioridad actual: {actual.Prioridad} (1 = más alta)",
+            AlgoritmoPlanificacion.ColasMultiples => actual is null
+                ? "Cola actual: - (C1 es superior)"
+                : $"Cola actual: C{actual.Cola} (C1 > C2 > C3)",
             _ => "Quantum: no aplica"
         };
 
@@ -460,6 +467,10 @@ public sealed class FrmPlanificacion : Form
             lblCola.Text = "Listos: " + string.Join("  →  ",
                 simulador.ColaListos.Select(p => $"P{p.Id:00}(pr={p.Prioridad})"));
         }
+        else if (simulador.Algoritmo == AlgoritmoPlanificacion.ColasMultiples)
+        {
+            lblCola.Text = $"C1: {IdsDeCola(1)}   C2: {IdsDeCola(2)}   C3: {IdsDeCola(3)}";
+        }
         else
         {
             lblCola.Text = "Listos: " + string.Join("  →  ",
@@ -471,6 +482,7 @@ public sealed class FrmPlanificacion : Form
             AlgoritmoPlanificacion.SJF => "SJF: menor ráfaga disponible, no apropiativo.",
             AlgoritmoPlanificacion.RoundRobin => $"RR: FIFO, apropiativo, quantum={simulador.Quantum}.",
             AlgoritmoPlanificacion.Prioridad => "Prioridad: 1 es la más alta; apropiativo.",
+            AlgoritmoPlanificacion.ColasMultiples => "Colas: C1 > C2 > C3; FIFO por cola; apropiativo entre niveles.",
             _ => "FCFS: FIFO, no apropiativo."
         };
 
@@ -480,6 +492,15 @@ public sealed class FrmPlanificacion : Form
 
         ActualizarTabla();
         ActualizarGantt();
+    }
+
+    private string IdsDeCola(int cola)
+    {
+        var ids = simulador.ColaListos
+            .Where(p => p.Cola == cola)
+            .Select(p => $"P{p.Id:00}")
+            .ToList();
+        return ids.Count == 0 ? "-" : string.Join("→", ids);
     }
 
     private void ActualizarTabla()
@@ -514,9 +535,15 @@ public sealed class FrmPlanificacion : Form
         {
             var duracion = segmento.Fin - segmento.Inicio;
             var esCpuLibre = segmento.ProcesoId == 0;
+            var procesoSegmento = esCpuLibre
+                ? null
+                : simulador.Procesos.FirstOrDefault(p => p.Id == segmento.ProcesoId);
+
             var texto = esCpuLibre
                 ? $"LIBRE\n{segmento.Inicio} - {segmento.Fin}"
-                : $"P{segmento.ProcesoId:00}\n{segmento.Inicio} - {segmento.Fin}";
+                : simulador.Algoritmo == AlgoritmoPlanificacion.ColasMultiples && procesoSegmento is not null
+                    ? $"P{segmento.ProcesoId:00} [C{procesoSegmento.Cola}]\n{segmento.Inicio} - {segmento.Fin}"
+                    : $"P{segmento.ProcesoId:00}\n{segmento.Inicio} - {segmento.Fin}";
 
             pnlGantt.Controls.Add(new Label
             {
