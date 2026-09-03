@@ -74,7 +74,7 @@ public sealed class FrmPrincipal : Form
         botones.Controls.Add(Boton("■  [ Detener ]", TemaMiniOS.VerdeOscuro, Detener));
         botones.Controls.Add(Boton("↻  [ Reiniciar ]", TemaMiniOS.VerdeAzulado, Reiniciar));
         botones.Controls.Add(Boton("»  [ Avanzar reloj ]", TemaMiniOS.VerdeAzulado, Avanzar));
-        botones.Controls.Add(Boton("⚙  [ Configuración ]", TemaMiniOS.VerdeOscuro, () => AbrirDetalle("Configuración", new[] { "Memoria total: 4096 MB", "Reloj automático: 1 segundo", "Planificación: módulo interactivo FCFS" })));
+        botones.Controls.Add(Boton("⚙  [ Configuración ]", TemaMiniOS.VerdeOscuro, () => AbrirDetalle("Configuración", new[] { "Memoria total: 4096 MB", "Reloj automático: 1 segundo", "Planificación: 7 algoritmos interactivos con ejecución paso a paso" })));
         principal.Controls.Add(Tarjeta("BOTONES PRINCIPALES", botones), 0, 4);
         return principal;
     }
