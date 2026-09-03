@@ -30,9 +30,17 @@ public sealed class SimuladorPlanificacion
 
     public IReadOnlyList<Proceso> Procesos => procesos;
     public IReadOnlyList<SegmentoEjecucion> LineaTiempo => lineaTiempo;
-    public IReadOnlyList<Proceso> ColaListos => planificador.ColaListos;
+    public IReadOnlyList<Proceso> ColaListos => Algoritmo == AlgoritmoPlanificacion.Garantizada
+        ? planificador.ColaListos
+            .OrderBy(p => RatioGarantizado(p))
+            .ThenBy(p => p.TiempoLlegada)
+            .ThenBy(p => p.Id)
+            .ToList()
+        : planificador.ColaListos;
     public Proceso? ProcesoActual => cpu.ProcesoActual;
     public bool Finalizado => procesos.Count > 0 && procesos.All(p => p.Terminado);
+
+    public int ProcesosActivos => procesos.Count(p => !p.Terminado && p.TiempoLlegada <= TiempoActual);
 
     public string NombreAlgoritmo => Algoritmo switch
     {
@@ -86,6 +94,22 @@ public sealed class SimuladorPlanificacion
         EventoGenerado?.Invoke($"Simulación {NombreAlgoritmo} reiniciada.");
     }
 
+    public double TiempoIdealGarantizado(Proceso proceso)
+    {
+        return Planificador.CalcularTiempoIdealGarantizado(
+            proceso,
+            TiempoActual,
+            Math.Max(1, ProcesosActivos));
+    }
+
+    public double RatioGarantizado(Proceso proceso)
+    {
+        return Planificador.CalcularRatioGarantizado(
+            proceso,
+            TiempoActual,
+            Math.Max(1, ProcesosActivos));
+    }
+
     public void EjecutarPaso()
     {
         if (Finalizado || procesos.Count == 0)
@@ -93,8 +117,6 @@ public sealed class SimuladorPlanificacion
 
         IncorporarLlegadas();
 
-        // Prioridad es apropiativa en MiniOS: si aparece un proceso con una
-        // prioridad numéricamente menor, desplaza al que está usando la CPU.
         if (Algoritmo == AlgoritmoPlanificacion.Prioridad &&
             cpu.ProcesoActual is not null &&
             planificador.HayPrioridadSuperiorA(cpu.ProcesoActual))
@@ -108,8 +130,6 @@ public sealed class SimuladorPlanificacion
             }
         }
 
-        // En colas múltiples cada proceso permanece en una de tres colas fijas.
-        // Una cola de nivel superior puede desalojar a un proceso de una cola inferior.
         if (Algoritmo == AlgoritmoPlanificacion.ColasMultiples &&
             cpu.ProcesoActual is not null &&
             planificador.HayColaSuperiorA(cpu.ProcesoActual))
@@ -123,11 +143,34 @@ public sealed class SimuladorPlanificacion
             }
         }
 
+        // La planificación garantizada busca que, con n procesos activos,
+        // cada uno reciba aproximadamente 1/n de la CPU. Se compara el tiempo
+        // realmente recibido con el tiempo al que cada proceso tiene derecho.
+        if (Algoritmo == AlgoritmoPlanificacion.Garantizada &&
+            cpu.ProcesoActual is not null &&
+            planificador.HayGarantizadoMasAtrasadoQue(
+                cpu.ProcesoActual,
+                TiempoActual,
+                Math.Max(1, ProcesosActivos)))
+        {
+            var desalojado = cpu.Liberar();
+            if (desalojado is not null)
+            {
+                var ratio = RatioGarantizado(desalojado);
+                planificador.Reencolar(desalojado);
+                EventoGenerado?.Invoke(
+                    $"t={TiempoActual}: P{desalojado.Id:00} cede la CPU; su ratio actual es {ratio:F2} y existe un proceso con menor ratio.");
+            }
+        }
+
         var nuevoDespacho = false;
 
         if (cpu.ProcesoActual is null)
         {
-            var siguiente = planificador.SeleccionarSiguiente();
+            var siguiente = planificador.SeleccionarSiguiente(
+                TiempoActual,
+                Math.Max(1, ProcesosActivos));
+
             if (siguiente is not null)
             {
                 if (siguiente.TiempoInicio is null)
@@ -147,6 +190,8 @@ public sealed class SimuladorPlanificacion
                     AlgoritmoPlanificacion.RoundRobin => $" Quantum={Quantum}.",
                     AlgoritmoPlanificacion.Prioridad => $" Prioridad={siguiente.Prioridad}.",
                     AlgoritmoPlanificacion.ColasMultiples => $" Cola={siguiente.Cola}.",
+                    AlgoritmoPlanificacion.Garantizada =>
+                        $" CPU recibida={siguiente.TiempoCpuRecibido}, ideal={TiempoIdealGarantizado(siguiente):F2}, ratio={RatioGarantizado(siguiente):F2}.",
                     _ => string.Empty
                 };
 
@@ -162,7 +207,9 @@ public sealed class SimuladorPlanificacion
             RegistrarSegmento(
                 ejecutando.Id,
                 ejecutando.Nombre,
-                forzarNuevo: Algoritmo == AlgoritmoPlanificacion.RoundRobin && nuevoDespacho);
+                forzarNuevo: nuevoDespacho &&
+                             (Algoritmo == AlgoritmoPlanificacion.RoundRobin ||
+                              Algoritmo == AlgoritmoPlanificacion.Garantizada));
 
             cpu.EjecutarTick();
 
@@ -185,8 +232,6 @@ public sealed class SimuladorPlanificacion
                  Algoritmo == AlgoritmoPlanificacion.RoundRobin &&
                  QuantumRestante == 0)
         {
-            // Los procesos que llegan justo cuando vence el quantum entran primero
-            // a la cola; luego el proceso desalojado vuelve al final.
             IncorporarLlegadas();
 
             var desalojado = cpu.Liberar();
@@ -218,9 +263,13 @@ public sealed class SimuladorPlanificacion
         var incorporados = planificador.IncorporarProcesos(procesos, TiempoActual);
         foreach (var proceso in incorporados)
         {
-            var detalle = Algoritmo == AlgoritmoPlanificacion.ColasMultiples
-                ? $" en cola {proceso.Cola}"
-                : string.Empty;
+            var detalle = Algoritmo switch
+            {
+                AlgoritmoPlanificacion.ColasMultiples => $" en cola {proceso.Cola}",
+                AlgoritmoPlanificacion.Garantizada => " con cuota equitativa de CPU",
+                _ => string.Empty
+            };
+
             EventoGenerado?.Invoke($"t={TiempoActual}: P{proceso.Id:00} ({proceso.Nombre}) llegó y entró a listos{detalle}.");
         }
     }
@@ -236,7 +285,7 @@ public sealed class SimuladorPlanificacion
 
         EventoGenerado?.Invoke(
             $"t={TiempoActual}: P{proceso.Id:00} finalizó. " +
-            $"Espera={proceso.TiempoEspera}, respuesta={proceso.TiempoRespuesta}, retorno={proceso.TiempoRetorno}.");
+            $"Espera={proceso.TiempoEspera}, respuesta={proceso.TiempoRespuesta}, retorno={proceso.TiempoRetorno}, CPU recibida={proceso.TiempoCpuRecibido}.");
     }
 
     private void ActualizarTiemposDeEspera()
