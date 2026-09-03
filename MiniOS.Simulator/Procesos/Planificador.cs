@@ -28,6 +28,12 @@ public sealed class Planificador
     // En MiniOS el número 1 representa la prioridad más alta.
     private readonly PriorityQueue<Proceso, (int Prioridad, int Llegada, int Id)> colaPrioridad = new();
 
+    // Colas múltiples NO comparte una sola colección: mantiene tres colas FIFO
+    // independientes. Cola 1 tiene precedencia sobre Cola 2 y Cola 3.
+    private readonly Queue<Proceso> colaNivel1 = new();
+    private readonly Queue<Proceso> colaNivel2 = new();
+    private readonly Queue<Proceso> colaNivel3 = new();
+
     private readonly HashSet<int> idsEnListos = [];
 
     public AlgoritmoPlanificacion Algoritmo { get; set; } = AlgoritmoPlanificacion.FCFS;
@@ -48,6 +54,10 @@ public sealed class Planificador
             .ThenBy(x => x.Priority.Id)
             .Select(x => x.Element)
             .ToList(),
+        AlgoritmoPlanificacion.ColasMultiples => colaNivel1
+            .Concat(colaNivel2)
+            .Concat(colaNivel3)
+            .ToList(),
         _ => colaFcfs.ToList()
     };
 
@@ -57,6 +67,9 @@ public sealed class Planificador
         colaSjf.Clear();
         colaRoundRobin.Clear();
         colaPrioridad.Clear();
+        colaNivel1.Clear();
+        colaNivel2.Clear();
+        colaNivel3.Clear();
         idsEnListos.Clear();
     }
 
@@ -88,6 +101,10 @@ public sealed class Planificador
                     colaPrioridad.Enqueue(proceso, (proceso.Prioridad, proceso.TiempoLlegada, proceso.Id));
                     break;
 
+                case AlgoritmoPlanificacion.ColasMultiples:
+                    EncolarColaMultiple(proceso);
+                    break;
+
                 default:
                     colaFcfs.Enqueue(proceso);
                     break;
@@ -107,6 +124,7 @@ public sealed class Planificador
             AlgoritmoPlanificacion.SJF => SeleccionarSjf(),
             AlgoritmoPlanificacion.RoundRobin => SeleccionarRoundRobin(),
             AlgoritmoPlanificacion.Prioridad => SeleccionarPrioridad(),
+            AlgoritmoPlanificacion.ColasMultiples => SeleccionarColasMultiples(),
             _ => SeleccionarFcfs()
         };
     }
@@ -118,6 +136,21 @@ public sealed class Planificador
 
         return colaPrioridad.TryPeek(out _, out var prioridadEnEspera) &&
                prioridadEnEspera.Prioridad < procesoActual.Prioridad;
+    }
+
+    public bool HayColaSuperiorA(Proceso procesoActual)
+    {
+        if (Algoritmo != AlgoritmoPlanificacion.ColasMultiples)
+            return false;
+
+        var colaActual = NormalizarCola(procesoActual.Cola);
+
+        return colaActual switch
+        {
+            2 => colaNivel1.Count > 0,
+            3 => colaNivel1.Count > 0 || colaNivel2.Count > 0,
+            _ => false
+        };
     }
 
     public void Reencolar(Proceso proceso)
@@ -140,6 +173,10 @@ public sealed class Planificador
                 colaPrioridad.Enqueue(proceso, (proceso.Prioridad, proceso.TiempoLlegada, proceso.Id));
                 break;
 
+            case AlgoritmoPlanificacion.ColasMultiples:
+                EncolarColaMultiple(proceso);
+                break;
+
             default:
                 idsEnListos.Remove(proceso.Id);
                 break;
@@ -151,19 +188,7 @@ public sealed class Planificador
         idsEnListos.Remove(proceso.Id);
     }
 
-    private Proceso? SeleccionarFcfs()
-    {
-        while (colaFcfs.Count > 0)
-        {
-            var proceso = colaFcfs.Dequeue();
-            idsEnListos.Remove(proceso.Id);
-
-            if (!proceso.Terminado)
-                return proceso;
-        }
-
-        return null;
-    }
+    private Proceso? SeleccionarFcfs() => SeleccionarDeCola(colaFcfs);
 
     private Proceso? SeleccionarSjf()
     {
@@ -179,19 +204,7 @@ public sealed class Planificador
         return null;
     }
 
-    private Proceso? SeleccionarRoundRobin()
-    {
-        while (colaRoundRobin.Count > 0)
-        {
-            var proceso = colaRoundRobin.Dequeue();
-            idsEnListos.Remove(proceso.Id);
-
-            if (!proceso.Terminado)
-                return proceso;
-        }
-
-        return null;
-    }
+    private Proceso? SeleccionarRoundRobin() => SeleccionarDeCola(colaRoundRobin);
 
     private Proceso? SeleccionarPrioridad()
     {
@@ -206,4 +219,43 @@ public sealed class Planificador
 
         return null;
     }
+
+    private Proceso? SeleccionarColasMultiples()
+    {
+        return SeleccionarDeCola(colaNivel1)
+               ?? SeleccionarDeCola(colaNivel2)
+               ?? SeleccionarDeCola(colaNivel3);
+    }
+
+    private Proceso? SeleccionarDeCola(Queue<Proceso> cola)
+    {
+        while (cola.Count > 0)
+        {
+            var proceso = cola.Dequeue();
+            idsEnListos.Remove(proceso.Id);
+
+            if (!proceso.Terminado)
+                return proceso;
+        }
+
+        return null;
+    }
+
+    private void EncolarColaMultiple(Proceso proceso)
+    {
+        switch (NormalizarCola(proceso.Cola))
+        {
+            case 1:
+                colaNivel1.Enqueue(proceso);
+                break;
+            case 2:
+                colaNivel2.Enqueue(proceso);
+                break;
+            default:
+                colaNivel3.Enqueue(proceso);
+                break;
+        }
+    }
+
+    private static int NormalizarCola(int cola) => Math.Clamp(cola, 1, 3);
 }
