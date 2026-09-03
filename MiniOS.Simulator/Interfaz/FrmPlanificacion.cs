@@ -99,7 +99,7 @@ public sealed class FrmPlanificacion : Form
     {
         Text = "MiniOS - Planificación de procesos";
         StartPosition = FormStartPosition.CenterParent;
-        MinimumSize = new Size(1120, 720);
+        MinimumSize = new Size(1120, 760);
         ClientSize = new Size(1280, 820);
         TemaMiniOS.Aplicar(this);
 
@@ -133,7 +133,7 @@ public sealed class FrmPlanificacion : Form
         raiz.RowStyles.Add(new RowStyle(SizeType.Absolute, 118));
         raiz.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         raiz.RowStyles.Add(new RowStyle(SizeType.Absolute, 118));
-        raiz.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
+        raiz.RowStyles.Add(new RowStyle(SizeType.Absolute, 94));
 
         var titulo = Etiqueta("⚙  PLANIFICACIÓN DE PROCESOS", 20, true, TemaMiniOS.VerdeOscuro);
         titulo.Dock = DockStyle.Fill;
@@ -154,7 +154,7 @@ public sealed class FrmPlanificacion : Form
         {
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = true,
+            WrapContents = false,
             AutoScroll = true,
             Padding = new Padding(8, 2, 8, 2)
         };
@@ -168,14 +168,14 @@ public sealed class FrmPlanificacion : Form
 
         var agregar = BotonSecundario("＋ Agregar proceso", AgregarProceso);
         agregar.Width = 155;
-        agregar.Height = 38;
-        agregar.Margin = new Padding(10, 28, 4, 4);
+        agregar.Height = 36;
+        agregar.Margin = new Padding(10, 25, 4, 4);
         flujo.Controls.Add(agregar);
 
         var ejemplo = BotonSecundario("Cargar ejemplo", CargarEjemplo);
         ejemplo.Width = 135;
-        ejemplo.Height = 38;
-        ejemplo.Margin = new Padding(4, 28, 4, 4);
+        ejemplo.Height = 36;
+        ejemplo.Margin = new Padding(4, 25, 4, 4);
         flujo.Controls.Add(ejemplo);
 
         var tarjeta = Tarjeta("CONFIGURACIÓN DEL ESCENARIO", flujo);
@@ -211,9 +211,9 @@ public sealed class FrmPlanificacion : Form
             ColumnCount = 1
         };
 
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 104));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 84));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 108));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 120));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 96));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 124));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         var cpu = Vertical();
@@ -245,8 +245,8 @@ public sealed class FrmPlanificacion : Form
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
-            AutoScroll = true,
-            Padding = new Padding(8, 8, 0, 0)
+            AutoScroll = false,
+            Padding = new Padding(8, 4, 0, 0)
         };
 
         botones.Controls.Add(BotonPrincipal("→  Paso", TemaMiniOS.VerdeAzulado, EjecutarPaso));
@@ -564,13 +564,13 @@ public sealed class FrmPlanificacion : Form
         var panel = new TableLayoutPanel
         {
             Width = ancho,
-            Height = 68,
+            Height = 64,
             RowCount = 2,
             ColumnCount = 1,
             Margin = new Padding(5)
         };
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 23));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
         panel.Controls.Add(Etiqueta(titulo, 8.8f, true), 0, 0);
         control.Dock = DockStyle.Fill;
         panel.Controls.Add(control, 0, 1);
@@ -591,14 +591,14 @@ public sealed class FrmPlanificacion : Form
         var boton = new Button
         {
             Text = texto,
-            Size = new Size(170, 42),
+            Size = new Size(170, 38),
             BackColor = color,
             ForeColor = TemaMiniOS.Blanco,
             Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
             FlatStyle = FlatStyle.Flat,
             UseVisualStyleBackColor = false,
             Cursor = Cursors.Hand,
-            Margin = new Padding(6)
+            Margin = new Padding(6, 3, 6, 3)
         };
         boton.FlatAppearance.BorderSize = 0;
         boton.Click += (_, _) => accion();
