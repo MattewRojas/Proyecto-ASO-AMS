@@ -24,6 +24,10 @@ public sealed class Planificador
     // vuelve al final de esta cola si todavía no ha terminado.
     private readonly Queue<Proceso> colaRoundRobin = new();
 
+    // Planificación por prioridad usa una cola de prioridad real.
+    // En MiniOS el número 1 representa la prioridad más alta.
+    private readonly PriorityQueue<Proceso, (int Prioridad, int Llegada, int Id)> colaPrioridad = new();
+
     private readonly HashSet<int> idsEnListos = [];
 
     public AlgoritmoPlanificacion Algoritmo { get; set; } = AlgoritmoPlanificacion.FCFS;
@@ -38,6 +42,12 @@ public sealed class Planificador
             .Select(x => x.Element)
             .ToList(),
         AlgoritmoPlanificacion.RoundRobin => colaRoundRobin.ToList(),
+        AlgoritmoPlanificacion.Prioridad => colaPrioridad.UnorderedItems
+            .OrderBy(x => x.Priority.Prioridad)
+            .ThenBy(x => x.Priority.Llegada)
+            .ThenBy(x => x.Priority.Id)
+            .Select(x => x.Element)
+            .ToList(),
         _ => colaFcfs.ToList()
     };
 
@@ -46,6 +56,7 @@ public sealed class Planificador
         colaFcfs.Clear();
         colaSjf.Clear();
         colaRoundRobin.Clear();
+        colaPrioridad.Clear();
         idsEnListos.Clear();
     }
 
@@ -73,6 +84,10 @@ public sealed class Planificador
                     colaRoundRobin.Enqueue(proceso);
                     break;
 
+                case AlgoritmoPlanificacion.Prioridad:
+                    colaPrioridad.Enqueue(proceso, (proceso.Prioridad, proceso.TiempoLlegada, proceso.Id));
+                    break;
+
                 default:
                     colaFcfs.Enqueue(proceso);
                     break;
@@ -91,19 +106,44 @@ public sealed class Planificador
             AlgoritmoPlanificacion.FCFS => SeleccionarFcfs(),
             AlgoritmoPlanificacion.SJF => SeleccionarSjf(),
             AlgoritmoPlanificacion.RoundRobin => SeleccionarRoundRobin(),
+            AlgoritmoPlanificacion.Prioridad => SeleccionarPrioridad(),
             _ => SeleccionarFcfs()
         };
     }
 
+    public bool HayPrioridadSuperiorA(Proceso procesoActual)
+    {
+        if (Algoritmo != AlgoritmoPlanificacion.Prioridad || colaPrioridad.Count == 0)
+            return false;
+
+        return colaPrioridad.TryPeek(out _, out var prioridadEnEspera) &&
+               prioridadEnEspera.Prioridad < procesoActual.Prioridad;
+    }
+
     public void Reencolar(Proceso proceso)
     {
-        if (Algoritmo != AlgoritmoPlanificacion.RoundRobin || proceso.Terminado)
+        if (proceso.Terminado)
             return;
 
         proceso.Estado = EstadoProceso.Listo;
 
-        if (idsEnListos.Add(proceso.Id))
-            colaRoundRobin.Enqueue(proceso);
+        if (!idsEnListos.Add(proceso.Id))
+            return;
+
+        switch (Algoritmo)
+        {
+            case AlgoritmoPlanificacion.RoundRobin:
+                colaRoundRobin.Enqueue(proceso);
+                break;
+
+            case AlgoritmoPlanificacion.Prioridad:
+                colaPrioridad.Enqueue(proceso, (proceso.Prioridad, proceso.TiempoLlegada, proceso.Id));
+                break;
+
+            default:
+                idsEnListos.Remove(proceso.Id);
+                break;
+        }
     }
 
     public void NotificarFinalizacion(Proceso proceso)
@@ -144,6 +184,20 @@ public sealed class Planificador
         while (colaRoundRobin.Count > 0)
         {
             var proceso = colaRoundRobin.Dequeue();
+            idsEnListos.Remove(proceso.Id);
+
+            if (!proceso.Terminado)
+                return proceso;
+        }
+
+        return null;
+    }
+
+    private Proceso? SeleccionarPrioridad()
+    {
+        while (colaPrioridad.Count > 0)
+        {
+            var proceso = colaPrioridad.Dequeue();
             idsEnListos.Remove(proceso.Id);
 
             if (!proceso.Terminado)
