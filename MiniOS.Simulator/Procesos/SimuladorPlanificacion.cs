@@ -11,12 +11,20 @@ public sealed class SimuladorPlanificacion
     private int quantum = 2;
 
     public int TiempoActual { get; private set; }
+
     public int Quantum
     {
         get => quantum;
         set => quantum = Math.Max(1, value);
     }
+
     public int QuantumRestante { get; private set; }
+
+    public int CupoResidentes
+    {
+        get => planificador.CupoResidentes;
+        set => planificador.CupoResidentes = Math.Max(1, value);
+    }
 
     public AlgoritmoPlanificacion Algoritmo
     {
@@ -32,14 +40,16 @@ public sealed class SimuladorPlanificacion
     public IReadOnlyList<SegmentoEjecucion> LineaTiempo => lineaTiempo;
     public IReadOnlyList<Proceso> ColaListos => Algoritmo == AlgoritmoPlanificacion.Garantizada
         ? planificador.ColaListos
-            .OrderBy(p => RatioGarantizado(p))
+            .OrderBy(RatioGarantizado)
             .ThenBy(p => p.TiempoLlegada)
             .ThenBy(p => p.Id)
             .ToList()
         : planificador.ColaListos;
+
+    public IReadOnlyList<Proceso> ResidentesDosNiveles => planificador.ResidentesDosNiveles;
+    public IReadOnlyList<Proceso> SuspendidosDosNiveles => planificador.SuspendidosDosNiveles;
     public Proceso? ProcesoActual => cpu.ProcesoActual;
     public bool Finalizado => procesos.Count > 0 && procesos.All(p => p.Terminado);
-
     public int ProcesosActivos => procesos.Count(p => !p.Terminado && p.TiempoLlegada <= TiempoActual);
 
     public string NombreAlgoritmo => Algoritmo switch
@@ -95,20 +105,10 @@ public sealed class SimuladorPlanificacion
     }
 
     public double TiempoIdealGarantizado(Proceso proceso)
-    {
-        return Planificador.CalcularTiempoIdealGarantizado(
-            proceso,
-            TiempoActual,
-            Math.Max(1, ProcesosActivos));
-    }
+        => Planificador.CalcularTiempoIdealGarantizado(proceso);
 
     public double RatioGarantizado(Proceso proceso)
-    {
-        return Planificador.CalcularRatioGarantizado(
-            proceso,
-            TiempoActual,
-            Math.Max(1, ProcesosActivos));
-    }
+        => Planificador.CalcularRatioGarantizado(proceso);
 
     public void EjecutarPaso()
     {
@@ -116,6 +116,12 @@ public sealed class SimuladorPlanificacion
             return;
 
         IncorporarLlegadas();
+
+        // Guardamos quiénes estuvieron activos durante este intervalo para
+        // acumular correctamente la cuota ideal de Planificación garantizada.
+        var activosParaCuota = Algoritmo == AlgoritmoPlanificacion.Garantizada
+            ? procesos.Where(p => !p.Terminado && p.TiempoLlegada <= TiempoActual).ToList()
+            : [];
 
         if (Algoritmo == AlgoritmoPlanificacion.Prioridad &&
             cpu.ProcesoActual is not null &&
@@ -143,15 +149,9 @@ public sealed class SimuladorPlanificacion
             }
         }
 
-        // La planificación garantizada busca que, con n procesos activos,
-        // cada uno reciba aproximadamente 1/n de la CPU. Se compara el tiempo
-        // realmente recibido con el tiempo al que cada proceso tiene derecho.
         if (Algoritmo == AlgoritmoPlanificacion.Garantizada &&
             cpu.ProcesoActual is not null &&
-            planificador.HayGarantizadoMasAtrasadoQue(
-                cpu.ProcesoActual,
-                TiempoActual,
-                Math.Max(1, ProcesosActivos)))
+            planificador.HayGarantizadoMasAtrasadoQue(cpu.ProcesoActual))
         {
             var desalojado = cpu.Liberar();
             if (desalojado is not null)
@@ -167,10 +167,7 @@ public sealed class SimuladorPlanificacion
 
         if (cpu.ProcesoActual is null)
         {
-            var siguiente = planificador.SeleccionarSiguiente(
-                TiempoActual,
-                Math.Max(1, ProcesosActivos));
-
+            var siguiente = planificador.SeleccionarSiguiente(TiempoActual, Math.Max(1, ProcesosActivos));
             if (siguiente is not null)
             {
                 if (siguiente.TiempoInicio is null)
@@ -182,7 +179,7 @@ public sealed class SimuladorPlanificacion
                 cpu.Ejecutar(siguiente);
                 nuevoDespacho = true;
 
-                if (Algoritmo == AlgoritmoPlanificacion.RoundRobin)
+                if (Algoritmo is AlgoritmoPlanificacion.RoundRobin or AlgoritmoPlanificacion.DosNiveles)
                     QuantumRestante = Math.Min(Quantum, siguiente.TiempoRestante);
 
                 var detalle = Algoritmo switch
@@ -192,6 +189,8 @@ public sealed class SimuladorPlanificacion
                     AlgoritmoPlanificacion.ColasMultiples => $" Cola={siguiente.Cola}.",
                     AlgoritmoPlanificacion.Garantizada =>
                         $" CPU recibida={siguiente.TiempoCpuRecibido}, ideal={TiempoIdealGarantizado(siguiente):F2}, ratio={RatioGarantizado(siguiente):F2}.",
+                    AlgoritmoPlanificacion.DosNiveles =>
+                        $" Residente en RAM. Quantum inferior={Quantum}; cupo RAM={CupoResidentes}.",
                     _ => string.Empty
                 };
 
@@ -207,18 +206,26 @@ public sealed class SimuladorPlanificacion
             RegistrarSegmento(
                 ejecutando.Id,
                 ejecutando.Nombre,
-                forzarNuevo: nuevoDespacho &&
-                             (Algoritmo == AlgoritmoPlanificacion.RoundRobin ||
-                              Algoritmo == AlgoritmoPlanificacion.Garantizada));
+                forzarNuevo: nuevoDespacho && Algoritmo is
+                    AlgoritmoPlanificacion.RoundRobin or
+                    AlgoritmoPlanificacion.Garantizada or
+                    AlgoritmoPlanificacion.DosNiveles);
 
             cpu.EjecutarTick();
 
-            if (Algoritmo == AlgoritmoPlanificacion.RoundRobin)
+            if (Algoritmo is AlgoritmoPlanificacion.RoundRobin or AlgoritmoPlanificacion.DosNiveles)
                 QuantumRestante = Math.Max(0, QuantumRestante - 1);
         }
         else
         {
             RegistrarSegmento(0, "CPU libre", false);
+        }
+
+        if (Algoritmo == AlgoritmoPlanificacion.Garantizada && activosParaCuota.Count > 0)
+        {
+            var cuotaTick = 1.0 / activosParaCuota.Count;
+            foreach (var proceso in activosParaCuota)
+                proceso.TiempoCpuIdealAcumulado += cuotaTick;
         }
 
         TiempoActual++;
@@ -242,6 +249,33 @@ public sealed class SimuladorPlanificacion
                     $"t={TiempoActual}: P{desalojado.Id:00} agotó su quantum y vuelve al final de la cola con {desalojado.TiempoRestante} unidades restantes.");
             }
         }
+        else if (ejecutando is not null &&
+                 Algoritmo == AlgoritmoPlanificacion.DosNiveles &&
+                 QuantumRestante == 0)
+        {
+            // Primero se registran llegadas en el límite del quantum. Si RAM ya
+            // está llena, dichas llegadas quedan en el nivel superior (suspendidas).
+            IncorporarLlegadas();
+
+            var desalojado = cpu.Liberar();
+            if (desalojado is not null)
+            {
+                var habiaSuspendidos = SuspendidosDosNiveles.Count > 0;
+                var promovido = planificador.RotarDosNiveles(desalojado);
+
+                if (habiaSuspendidos && promovido is not null)
+                {
+                    EventoGenerado?.Invoke(
+                        $"t={TiempoActual}: intercambio de niveles: P{desalojado.Id:00} sale de RAM y queda suspendido; " +
+                        $"P{promovido.Id:00} sube desde disco a RAM.");
+                }
+                else
+                {
+                    EventoGenerado?.Invoke(
+                        $"t={TiempoActual}: P{desalojado.Id:00} agotó el quantum del nivel inferior y vuelve a la cola de residentes.");
+                }
+            }
+        }
 
         if (Finalizado)
             EventoGenerado?.Invoke($"Simulación {NombreAlgoritmo} finalizada en t={TiempoActual}.");
@@ -263,6 +297,16 @@ public sealed class SimuladorPlanificacion
         var incorporados = planificador.IncorporarProcesos(procesos, TiempoActual);
         foreach (var proceso in incorporados)
         {
+            if (Algoritmo == AlgoritmoPlanificacion.DosNiveles)
+            {
+                var ubicacion = proceso.Estado == EstadoProceso.Suspendido
+                    ? "queda suspendido en disco porque el cupo de RAM está lleno"
+                    : "es admitido como residente en RAM";
+                EventoGenerado?.Invoke(
+                    $"t={TiempoActual}: P{proceso.Id:00} ({proceso.Nombre}) llegó y {ubicacion}.");
+                continue;
+            }
+
             var detalle = Algoritmo switch
             {
                 AlgoritmoPlanificacion.ColasMultiples => $" en cola {proceso.Cola}",
@@ -270,7 +314,8 @@ public sealed class SimuladorPlanificacion
                 _ => string.Empty
             };
 
-            EventoGenerado?.Invoke($"t={TiempoActual}: P{proceso.Id:00} ({proceso.Nombre}) llegó y entró a listos{detalle}.");
+            EventoGenerado?.Invoke(
+                $"t={TiempoActual}: P{proceso.Id:00} ({proceso.Nombre}) llegó y entró a listos{detalle}.");
         }
     }
 
@@ -286,6 +331,15 @@ public sealed class SimuladorPlanificacion
         EventoGenerado?.Invoke(
             $"t={TiempoActual}: P{proceso.Id:00} finalizó. " +
             $"Espera={proceso.TiempoEspera}, respuesta={proceso.TiempoRespuesta}, retorno={proceso.TiempoRetorno}, CPU recibida={proceso.TiempoCpuRecibido}.");
+
+        if (Algoritmo == AlgoritmoPlanificacion.DosNiveles)
+        {
+            foreach (var promovido in planificador.PromoverSuspendidosHastaCupo())
+            {
+                EventoGenerado?.Invoke(
+                    $"t={TiempoActual}: P{promovido.Id:00} deja el nivel suspendido y entra en RAM al liberarse un cupo.");
+            }
+        }
     }
 
     private void ActualizarTiemposDeEspera()
@@ -293,7 +347,7 @@ public sealed class SimuladorPlanificacion
         foreach (var proceso in procesos)
         {
             if (!proceso.Terminado &&
-                proceso.Estado == EstadoProceso.Listo &&
+                proceso.Estado is EstadoProceso.Listo or EstadoProceso.Suspendido &&
                 proceso.TiempoLlegada < TiempoActual)
             {
                 proceso.TiempoEspera++;
