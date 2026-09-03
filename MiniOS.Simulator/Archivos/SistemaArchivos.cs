@@ -32,9 +32,17 @@ public sealed class SistemaArchivos
 
         foreach (var unidad in ObtenerUnidades())
         {
-            var etiqueta = string.IsNullOrWhiteSpace(unidad.VolumeLabel)
-                ? unidad.Name
-                : $"{unidad.VolumeLabel} ({unidad.Name.TrimEnd('\\')})";
+            string etiqueta;
+            try
+            {
+                etiqueta = string.IsNullOrWhiteSpace(unidad.VolumeLabel)
+                    ? unidad.Name
+                    : $"{unidad.VolumeLabel} ({unidad.Name.TrimEnd('\\')})";
+            }
+            catch
+            {
+                etiqueta = unidad.Name;
+            }
 
             var nodo = new TreeNode(etiqueta) { Tag = unidad.RootDirectory.FullName };
             AgregarMarcadorExpansion(nodo);
@@ -72,7 +80,7 @@ public sealed class SistemaArchivos
 
         try
         {
-            foreach (var directorio in Directory.GetDirectories(ruta).OrderBy(Path.GetFileName))
+            foreach (var directorio in Directory.GetDirectories(ruta).OrderBy(p => Path.GetFileName(p)))
             {
                 var nombre = Path.GetFileName(directorio);
                 if (string.IsNullOrWhiteSpace(nombre))
@@ -102,7 +110,7 @@ public sealed class SistemaArchivos
 
         try
         {
-            foreach (var directorio in Directory.GetDirectories(ruta).OrderBy(Path.GetFileName))
+            foreach (var directorio in Directory.GetDirectories(ruta).OrderBy(p => Path.GetFileName(p)))
             {
                 try
                 {
@@ -121,7 +129,7 @@ public sealed class SistemaArchivos
                 }
             }
 
-            foreach (var archivo in Directory.GetFiles(ruta).OrderBy(Path.GetFileName))
+            foreach (var archivo in Directory.GetFiles(ruta).OrderBy(p => Path.GetFileName(p)))
             {
                 try
                 {
@@ -197,6 +205,8 @@ public sealed class SistemaArchivos
             throw new InvalidOperationException("La creación de carpetas está habilitada únicamente dentro de MiniOS_Sandbox.");
 
         var destino = Path.Combine(carpetaActual, nombre.Trim());
+        if (!EsRutaEnZonaSegura(destino))
+            throw new InvalidOperationException("La operación debe permanecer dentro de MiniOS_Sandbox.");
         Directory.CreateDirectory(destino);
         return destino;
     }
@@ -212,6 +222,8 @@ public sealed class SistemaArchivos
             limpio += ".txt";
 
         var destino = Path.Combine(carpetaActual, limpio);
+        if (!EsRutaEnZonaSegura(destino))
+            throw new InvalidOperationException("La operación debe permanecer dentro de MiniOS_Sandbox.");
         if (File.Exists(destino))
             throw new InvalidOperationException("Ya existe un archivo con ese nombre.");
 
@@ -227,6 +239,8 @@ public sealed class SistemaArchivos
 
         var padre = Path.GetDirectoryName(ruta) ?? throw new InvalidOperationException("No se pudo determinar la carpeta contenedora.");
         var destino = Path.Combine(padre, nuevoNombre.Trim());
+        if (!EsRutaEnZonaSegura(destino))
+            throw new InvalidOperationException("La operación debe permanecer dentro de MiniOS_Sandbox.");
 
         if (Directory.Exists(ruta))
             Directory.Move(ruta, destino);
@@ -256,7 +270,11 @@ public sealed class SistemaArchivos
         if (string.IsNullOrWhiteSpace(nombre))
             throw new InvalidOperationException("Ingrese un nombre válido.");
 
-        if (nombre.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || nombre.Contains(Path.DirectorySeparatorChar) || nombre.Contains(Path.AltDirectorySeparatorChar))
+        var limpio = nombre.Trim();
+        if (limpio is "." or "..")
+            throw new InvalidOperationException("Ese nombre no es válido para un archivo o carpeta.");
+
+        if (limpio.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || limpio.Contains(Path.DirectorySeparatorChar) || limpio.Contains(Path.AltDirectorySeparatorChar))
             throw new InvalidOperationException("El nombre contiene caracteres no permitidos por Windows.");
     }
 
