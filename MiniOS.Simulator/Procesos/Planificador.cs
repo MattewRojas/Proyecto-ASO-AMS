@@ -13,26 +13,23 @@ public enum AlgoritmoPlanificacion
 
 public sealed class Planificador
 {
-    // FCFS usa una cola FIFO real.
     private readonly Queue<Proceso> colaFcfs = new();
 
-    // SJF usa una cola de prioridad: primero la ráfaga más corta disponible.
-    // Los desempates se resuelven por tiempo de llegada y luego por ID.
     private readonly PriorityQueue<Proceso, (int Rafaga, int Llegada, int Id)> colaSjf = new();
 
-    // Round Robin usa su propia cola FIFO. Un proceso que agota el quantum
-    // vuelve al final de esta cola si todavía no ha terminado.
     private readonly Queue<Proceso> colaRoundRobin = new();
 
-    // Planificación por prioridad usa una cola de prioridad real.
-    // En MiniOS el número 1 representa la prioridad más alta.
     private readonly PriorityQueue<Proceso, (int Prioridad, int Llegada, int Id)> colaPrioridad = new();
 
-    // Colas múltiples NO comparte una sola colección: mantiene tres colas FIFO
-    // independientes. Cola 1 tiene precedencia sobre Cola 2 y Cola 3.
     private readonly Queue<Proceso> colaNivel1 = new();
     private readonly Queue<Proceso> colaNivel2 = new();
     private readonly Queue<Proceso> colaNivel3 = new();
+
+    // En planificación garantizada el orden cambia continuamente según el
+    // cociente CPU recibida / CPU a la que el proceso tiene derecho.
+    // Por eso se conserva el conjunto de listos en un diccionario y se arma
+    // una PriorityQueue en cada decisión de planificación.
+    private readonly Dictionary<int, Proceso> listosGarantizada = new();
 
     private readonly HashSet<int> idsEnListos = [];
 
@@ -58,6 +55,11 @@ public sealed class Planificador
             .Concat(colaNivel2)
             .Concat(colaNivel3)
             .ToList(),
+        AlgoritmoPlanificacion.Garantizada => listosGarantizada.Values
+            .OrderBy(p => p.TiempoCpuRecibido)
+            .ThenBy(p => p.TiempoLlegada)
+            .ThenBy(p => p.Id)
+            .ToList(),
         _ => colaFcfs.ToList()
     };
 
@@ -70,6 +72,7 @@ public sealed class Planificador
         colaNivel1.Clear();
         colaNivel2.Clear();
         colaNivel3.Clear();
+        listosGarantizada.Clear();
         idsEnListos.Clear();
     }
 
@@ -105,6 +108,10 @@ public sealed class Planificador
                     EncolarColaMultiple(proceso);
                     break;
 
+                case AlgoritmoPlanificacion.Garantizada:
+                    listosGarantizada[proceso.Id] = proceso;
+                    break;
+
                 default:
                     colaFcfs.Enqueue(proceso);
                     break;
@@ -116,16 +123,17 @@ public sealed class Planificador
         return incorporados;
     }
 
-    public Proceso? SeleccionarSiguiente()
+    public Proceso? SeleccionarSiguiente(int tiempoActual = 0, int procesosActivos = 1)
     {
         return Algoritmo switch
         {
-            AlgoritmoPlanificacion.FCFS => SeleccionarFcfs(),
+            AlgoritmoPlanificacion.FCFS => SeleccionarDeCola(colaFcfs),
             AlgoritmoPlanificacion.SJF => SeleccionarSjf(),
-            AlgoritmoPlanificacion.RoundRobin => SeleccionarRoundRobin(),
+            AlgoritmoPlanificacion.RoundRobin => SeleccionarDeCola(colaRoundRobin),
             AlgoritmoPlanificacion.Prioridad => SeleccionarPrioridad(),
             AlgoritmoPlanificacion.ColasMultiples => SeleccionarColasMultiples(),
-            _ => SeleccionarFcfs()
+            AlgoritmoPlanificacion.Garantizada => SeleccionarGarantizada(tiempoActual, procesosActivos),
+            _ => SeleccionarDeCola(colaFcfs)
         };
     }
 
@@ -153,6 +161,18 @@ public sealed class Planificador
         };
     }
 
+    public bool HayGarantizadoMasAtrasadoQue(Proceso procesoActual, int tiempoActual, int procesosActivos)
+    {
+        if (Algoritmo != AlgoritmoPlanificacion.Garantizada || listosGarantizada.Count == 0)
+            return false;
+
+        var ratioActual = CalcularRatioGarantizado(procesoActual, tiempoActual, procesosActivos);
+        var menorRatioEnEspera = listosGarantizada.Values
+            .Min(p => CalcularRatioGarantizado(p, tiempoActual, procesosActivos));
+
+        return menorRatioEnEspera + 0.0001 < ratioActual;
+    }
+
     public void Reencolar(Proceso proceso)
     {
         if (proceso.Terminado)
@@ -177,6 +197,10 @@ public sealed class Planificador
                 EncolarColaMultiple(proceso);
                 break;
 
+            case AlgoritmoPlanificacion.Garantizada:
+                listosGarantizada[proceso.Id] = proceso;
+                break;
+
             default:
                 idsEnListos.Remove(proceso.Id);
                 break;
@@ -186,9 +210,27 @@ public sealed class Planificador
     public void NotificarFinalizacion(Proceso proceso)
     {
         idsEnListos.Remove(proceso.Id);
+        listosGarantizada.Remove(proceso.Id);
     }
 
-    private Proceso? SeleccionarFcfs() => SeleccionarDeCola(colaFcfs);
+    public static double CalcularTiempoIdealGarantizado(Proceso proceso, int tiempoActual, int procesosActivos)
+    {
+        if (procesosActivos <= 0)
+            return 0;
+
+        var tiempoDesdeLlegada = Math.Max(0, tiempoActual - proceso.TiempoLlegada);
+        return (double)tiempoDesdeLlegada / procesosActivos;
+    }
+
+    public static double CalcularRatioGarantizado(Proceso proceso, int tiempoActual, int procesosActivos)
+    {
+        var ideal = CalcularTiempoIdealGarantizado(proceso, tiempoActual, procesosActivos);
+
+        if (ideal <= 0.0001)
+            return proceso.TiempoCpuRecibido == 0 ? 0 : double.MaxValue;
+
+        return proceso.TiempoCpuRecibido / ideal;
+    }
 
     private Proceso? SeleccionarSjf()
     {
@@ -203,8 +245,6 @@ public sealed class Planificador
 
         return null;
     }
-
-    private Proceso? SeleccionarRoundRobin() => SeleccionarDeCola(colaRoundRobin);
 
     private Proceso? SeleccionarPrioridad()
     {
@@ -225,6 +265,29 @@ public sealed class Planificador
         return SeleccionarDeCola(colaNivel1)
                ?? SeleccionarDeCola(colaNivel2)
                ?? SeleccionarDeCola(colaNivel3);
+    }
+
+    private Proceso? SeleccionarGarantizada(int tiempoActual, int procesosActivos)
+    {
+        if (listosGarantizada.Count == 0)
+            return null;
+
+        var colaDinamica = new PriorityQueue<Proceso, (double Ratio, int Llegada, int Id)>();
+
+        foreach (var proceso in listosGarantizada.Values.Where(p => !p.Terminado))
+        {
+            colaDinamica.Enqueue(
+                proceso,
+                (CalcularRatioGarantizado(proceso, tiempoActual, procesosActivos), proceso.TiempoLlegada, proceso.Id));
+        }
+
+        if (colaDinamica.Count == 0)
+            return null;
+
+        var seleccionado = colaDinamica.Dequeue();
+        listosGarantizada.Remove(seleccionado.Id);
+        idsEnListos.Remove(seleccionado.Id);
+        return seleccionado;
     }
 
     private Proceso? SeleccionarDeCola(Queue<Proceso> cola)
