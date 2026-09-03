@@ -26,6 +26,14 @@ public sealed class FrmPlanificacion : Form
         Width = 66,
         Enabled = false
     };
+    private readonly NumericUpDown numCupoRam = new()
+    {
+        Minimum = 1,
+        Maximum = 6,
+        Value = 2,
+        Width = 66,
+        Enabled = false
+    };
 
     private readonly DataGridView dgvProcesos = new()
     {
@@ -87,6 +95,7 @@ public sealed class FrmPlanificacion : Form
         cboAlgoritmo.Items.Add("Prioridad (1 = más alta)");
         cboAlgoritmo.Items.Add("Colas múltiples (C1 > C2 > C3)");
         cboAlgoritmo.Items.Add("Garantizada (cuota 1/n de CPU)");
+        cboAlgoritmo.Items.Add("Dos niveles (RAM + suspendidos)");
         cboAlgoritmo.SelectedIndex = 0;
 
         ConfigurarTabla();
@@ -95,10 +104,12 @@ public sealed class FrmPlanificacion : Form
 
         simulador.Algoritmo = AlgoritmoPlanificacion.FCFS;
         simulador.Quantum = (int)numQuantum.Value;
+        simulador.CupoResidentes = (int)numCupoRam.Value;
         simulador.EventoGenerado += Registrar;
         temporizador.Tick += (_, _) => EjecutarTickAutomatico();
         cboAlgoritmo.SelectedIndexChanged += (_, _) => CambiarAlgoritmo();
         numQuantum.ValueChanged += (_, _) => CambiarQuantum();
+        numCupoRam.ValueChanged += (_, _) => CambiarCupoRam();
 
         CargarEjemplo();
     }
@@ -150,6 +161,7 @@ public sealed class FrmPlanificacion : Form
         flujo.Controls.Add(Campo("Prioridad", numPrioridad, 82));
         flujo.Controls.Add(Campo("Cola", numCola, 72));
         flujo.Controls.Add(Campo("Quantum", numQuantum, 80));
+        flujo.Controls.Add(Campo("Cupo RAM", numCupoRam, 88));
 
         var agregar = BotonSecundario("＋ Agregar", AgregarProceso);
         agregar.Width = 145;
@@ -271,11 +283,14 @@ public sealed class FrmPlanificacion : Form
             3 => AlgoritmoPlanificacion.Prioridad,
             4 => AlgoritmoPlanificacion.ColasMultiples,
             5 => AlgoritmoPlanificacion.Garantizada,
+            6 => AlgoritmoPlanificacion.DosNiveles,
             _ => AlgoritmoPlanificacion.FCFS
         };
 
-        numQuantum.Enabled = simulador.Algoritmo == AlgoritmoPlanificacion.RoundRobin;
+        numQuantum.Enabled = simulador.Algoritmo is AlgoritmoPlanificacion.RoundRobin or AlgoritmoPlanificacion.DosNiveles;
+        numCupoRam.Enabled = simulador.Algoritmo == AlgoritmoPlanificacion.DosNiveles;
         simulador.Quantum = (int)numQuantum.Value;
+        simulador.CupoResidentes = (int)numCupoRam.Value;
 
         if (procesosConfigurados.Count > 0)
             simulador.CargarProcesos(procesosConfigurados);
@@ -288,7 +303,7 @@ public sealed class FrmPlanificacion : Form
     private void CambiarQuantum()
     {
         simulador.Quantum = (int)numQuantum.Value;
-        if (simulador.Algoritmo != AlgoritmoPlanificacion.RoundRobin)
+        if (simulador.Algoritmo is not (AlgoritmoPlanificacion.RoundRobin or AlgoritmoPlanificacion.DosNiveles))
             return;
 
         DetenerAutomatico();
@@ -296,7 +311,22 @@ public sealed class FrmPlanificacion : Form
             simulador.ReiniciarEjecucion();
 
         rtbLog.Clear();
-        Registrar($"Quantum de Round Robin establecido en {simulador.Quantum}. Simulación reiniciada.");
+        Registrar($"Quantum establecido en {simulador.Quantum} para {simulador.NombreAlgoritmo}. Simulación reiniciada.");
+        ActualizarVista();
+    }
+
+    private void CambiarCupoRam()
+    {
+        simulador.CupoResidentes = (int)numCupoRam.Value;
+        if (simulador.Algoritmo != AlgoritmoPlanificacion.DosNiveles)
+            return;
+
+        DetenerAutomatico();
+        if (procesosConfigurados.Count > 0)
+            simulador.ReiniciarEjecucion();
+
+        rtbLog.Clear();
+        Registrar($"Cupo de residentes en RAM establecido en {simulador.CupoResidentes}. Simulación reiniciada.");
         ActualizarVista();
     }
 
@@ -332,17 +362,22 @@ public sealed class FrmPlanificacion : Form
 
         if (simulador.Algoritmo == AlgoritmoPlanificacion.Garantizada)
         {
-            // Todos llegan juntos para que la cuota 1/n y el ratio de consumo
-            // puedan observarse claramente durante la demostración.
             AgregarProcesoEjemplo("Editor", 0, 5, 2, 3);
             AgregarProcesoEjemplo("Navegador", 0, 3, 1, 2);
             AgregarProcesoEjemplo("Compilador", 0, 4, 3, 1);
             AgregarProcesoEjemplo("Calculadora", 0, 2, 2, 2);
         }
+        else if (simulador.Algoritmo == AlgoritmoPlanificacion.DosNiveles)
+        {
+            // Con cupo RAM=2: P01 y P02 entran como residentes; los siguientes
+            // esperan suspendidos y se intercambian al vencer el quantum.
+            AgregarProcesoEjemplo("Editor", 0, 5, 2, 1);
+            AgregarProcesoEjemplo("Navegador", 0, 4, 1, 1);
+            AgregarProcesoEjemplo("Compilador", 1, 3, 3, 1);
+            AgregarProcesoEjemplo("Calculadora", 2, 2, 2, 1);
+        }
         else
         {
-            // Las colas elegidas también sirven para demostrar Colas múltiples:
-            // P01 inicia en C3, luego llegan procesos de C2 y C1 que pueden desalojarlo.
             AgregarProcesoEjemplo("Editor", 0, 5, 2, 3);
             AgregarProcesoEjemplo("Navegador", 1, 3, 1, 2);
             AgregarProcesoEjemplo("Compilador", 2, 4, 3, 1);
@@ -470,12 +505,23 @@ public sealed class FrmPlanificacion : Form
                 ? "Cola actual: - (C1 es superior)"
                 : $"Cola actual: C{actual.Cola} (C1 > C2 > C3)",
             AlgoritmoPlanificacion.Garantizada => actual is null
-                ? $"Garantía: 1/{Math.Max(1, simulador.ProcesosActivos)} de CPU por activo"
+                ? $"Garantía equitativa entre {Math.Max(1, simulador.ProcesosActivos)} activo(s)"
                 : $"CPU={actual.TiempoCpuRecibido} | ideal={simulador.TiempoIdealGarantizado(actual):F2} | r={simulador.RatioGarantizado(actual):F2}",
+            AlgoritmoPlanificacion.DosNiveles => actual is null
+                ? $"RAM: {simulador.ResidentesDosNiveles.Count}/{simulador.CupoResidentes} | q={simulador.Quantum}"
+                : $"RAM: {simulador.ResidentesDosNiveles.Count}/{simulador.CupoResidentes} | q restante={simulador.QuantumRestante}/{simulador.Quantum}",
             _ => "Quantum: no aplica"
         };
 
-        if (simulador.ColaListos.Count == 0)
+        if (simulador.Algoritmo == AlgoritmoPlanificacion.DosNiveles)
+        {
+            var residentes = simulador.ResidentesDosNiveles
+                .Select(p => p == actual ? $"P{p.Id:00}*" : $"P{p.Id:00}")
+                .ToList();
+            var suspendidos = simulador.SuspendidosDosNiveles.Select(p => $"P{p.Id:00}").ToList();
+            lblCola.Text = $"RAM: {(residentes.Count == 0 ? "-" : string.Join("→", residentes))}   Disco: {(suspendidos.Count == 0 ? "-" : string.Join("→", suspendidos))}";
+        }
+        else if (simulador.ColaListos.Count == 0)
         {
             lblCola.Text = "Listos: vacía";
         }
@@ -505,7 +551,8 @@ public sealed class FrmPlanificacion : Form
             AlgoritmoPlanificacion.RoundRobin => $"RR: FIFO, apropiativo, quantum={simulador.Quantum}.",
             AlgoritmoPlanificacion.Prioridad => "Prioridad: 1 es la más alta; apropiativo.",
             AlgoritmoPlanificacion.ColasMultiples => "Colas: C1 > C2 > C3; FIFO por cola; apropiativo entre niveles.",
-            AlgoritmoPlanificacion.Garantizada => "Garantizada: cada activo ≈ 1/n; ejecuta el menor ratio CPU/ideal.",
+            AlgoritmoPlanificacion.Garantizada => "Garantizada: acumula cuota 1/n por tick y ejecuta el menor ratio CPU/ideal.",
+            AlgoritmoPlanificacion.DosNiveles => "Superior: RAM↔disco. Inferior: RR solo entre residentes.",
             _ => "FCFS: FIFO, no apropiativo."
         };
 
@@ -568,7 +615,9 @@ public sealed class FrmPlanificacion : Form
                     ? $"P{segmento.ProcesoId:00} [C{procesoSegmento.Cola}]\n{segmento.Inicio} - {segmento.Fin}"
                     : simulador.Algoritmo == AlgoritmoPlanificacion.Garantizada
                         ? $"P{segmento.ProcesoId:00} [G]\n{segmento.Inicio} - {segmento.Fin}"
-                        : $"P{segmento.ProcesoId:00}\n{segmento.Inicio} - {segmento.Fin}";
+                        : simulador.Algoritmo == AlgoritmoPlanificacion.DosNiveles
+                            ? $"P{segmento.ProcesoId:00} [2N]\n{segmento.Inicio} - {segmento.Fin}"
+                            : $"P{segmento.ProcesoId:00}\n{segmento.Inicio} - {segmento.Fin}";
 
             pnlGantt.Controls.Add(new Label
             {
