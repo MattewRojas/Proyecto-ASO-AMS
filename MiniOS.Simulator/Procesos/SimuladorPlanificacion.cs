@@ -23,6 +23,18 @@ public sealed class SimuladorPlanificacion
     public Proceso? ProcesoActual => cpu.ProcesoActual;
     public bool Finalizado => procesos.Count > 0 && procesos.All(p => p.Terminado);
 
+    public string NombreAlgoritmo => Algoritmo switch
+    {
+        AlgoritmoPlanificacion.FCFS => "FCFS",
+        AlgoritmoPlanificacion.SJF => "SJF",
+        AlgoritmoPlanificacion.RoundRobin => "Round Robin",
+        AlgoritmoPlanificacion.Prioridad => "Prioridad",
+        AlgoritmoPlanificacion.ColasMultiples => "Colas múltiples",
+        AlgoritmoPlanificacion.Garantizada => "Planificación garantizada",
+        AlgoritmoPlanificacion.DosNiveles => "Planificación a dos niveles",
+        _ => Algoritmo.ToString()
+    };
+
     public event Action<string>? EventoGenerado;
 
     public SimuladorPlanificacion(CPU cpu)
@@ -58,7 +70,7 @@ public sealed class SimuladorPlanificacion
         foreach (var proceso in procesos)
             proceso.PrepararParaSimulacion();
 
-        EventoGenerado?.Invoke("Simulación reiniciada.");
+        EventoGenerado?.Invoke($"Simulación {NombreAlgoritmo} reiniciada.");
     }
 
     public void EjecutarPaso()
@@ -68,7 +80,7 @@ public sealed class SimuladorPlanificacion
 
         var incorporados = planificador.IncorporarProcesos(procesos, TiempoActual);
         foreach (var proceso in incorporados)
-            EventoGenerado?.Invoke($"t={TiempoActual}: P{proceso.Id:00} ({proceso.Nombre}) llegó y entró a la cola de listos.");
+            EventoGenerado?.Invoke($"t={TiempoActual}: P{proceso.Id:00} ({proceso.Nombre}) llegó y entró a listos.");
 
         if (cpu.ProcesoActual is null)
         {
@@ -82,7 +94,8 @@ public sealed class SimuladorPlanificacion
                 }
 
                 cpu.Ejecutar(siguiente);
-                EventoGenerado?.Invoke($"t={TiempoActual}: CPU asignada a P{siguiente.Id:00} ({siguiente.Nombre}) por FCFS.");
+                EventoGenerado?.Invoke(
+                    $"t={TiempoActual}: CPU asignada a P{siguiente.Id:00} ({siguiente.Nombre}) por {NombreAlgoritmo}.");
             }
         }
 
@@ -114,7 +127,7 @@ public sealed class SimuladorPlanificacion
         }
 
         if (Finalizado)
-            EventoGenerado?.Invoke($"Simulación FCFS finalizada en t={TiempoActual}.");
+            EventoGenerado?.Invoke($"Simulación {NombreAlgoritmo} finalizada en t={TiempoActual}.");
     }
 
     public void EjecutarHastaFinalizar(int limitePasos = 10000)
