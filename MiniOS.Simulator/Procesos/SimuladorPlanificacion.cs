@@ -93,6 +93,21 @@ public sealed class SimuladorPlanificacion
 
         IncorporarLlegadas();
 
+        // Prioridad es apropiativa en MiniOS: si aparece un proceso con una
+        // prioridad numéricamente menor, desplaza al que está usando la CPU.
+        if (Algoritmo == AlgoritmoPlanificacion.Prioridad &&
+            cpu.ProcesoActual is not null &&
+            planificador.HayPrioridadSuperiorA(cpu.ProcesoActual))
+        {
+            var desalojado = cpu.Liberar();
+            if (desalojado is not null)
+            {
+                planificador.Reencolar(desalojado);
+                EventoGenerado?.Invoke(
+                    $"t={TiempoActual}: P{desalojado.Id:00} fue desalojado porque llegó un proceso de mayor prioridad.");
+            }
+        }
+
         var nuevoDespacho = false;
 
         if (cpu.ProcesoActual is null)
@@ -112,9 +127,15 @@ public sealed class SimuladorPlanificacion
                 if (Algoritmo == AlgoritmoPlanificacion.RoundRobin)
                     QuantumRestante = Math.Min(Quantum, siguiente.TiempoRestante);
 
+                var detalle = Algoritmo switch
+                {
+                    AlgoritmoPlanificacion.RoundRobin => $" Quantum={Quantum}.",
+                    AlgoritmoPlanificacion.Prioridad => $" Prioridad={siguiente.Prioridad}.",
+                    _ => string.Empty
+                };
+
                 EventoGenerado?.Invoke(
-                    $"t={TiempoActual}: CPU asignada a P{siguiente.Id:00} ({siguiente.Nombre}) por {NombreAlgoritmo}." +
-                    (Algoritmo == AlgoritmoPlanificacion.RoundRobin ? $" Quantum={Quantum}." : string.Empty));
+                    $"t={TiempoActual}: CPU asignada a P{siguiente.Id:00} ({siguiente.Nombre}) por {NombreAlgoritmo}." + detalle);
             }
         }
 
