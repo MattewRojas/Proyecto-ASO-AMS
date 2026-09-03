@@ -18,25 +18,36 @@ public sealed class Planificador
 
     public AlgoritmoPlanificacion Algoritmo { get; set; } = AlgoritmoPlanificacion.FCFS;
 
+    public IReadOnlyList<Proceso> ColaListos => Algoritmo switch
+    {
+        AlgoritmoPlanificacion.FCFS => colaFcfs.ToList(),
+        _ => colaFcfs.ToList()
+    };
+
     public void Reiniciar()
     {
         colaFcfs.Clear();
         idsEnCola.Clear();
     }
 
-    public void IncorporarProcesos(IEnumerable<Proceso> procesos, int tiempoActual)
+    public IReadOnlyList<Proceso> IncorporarProcesos(IEnumerable<Proceso> procesos, int tiempoActual)
     {
+        var incorporados = new List<Proceso>();
+
         foreach (var proceso in procesos
-                     .Where(p => p.TiempoLlegada <= tiempoActual && !p.Terminado)
+                     .Where(p => p.TiempoLlegada <= tiempoActual && !p.Terminado && p.Estado == EstadoProceso.Nuevo)
                      .OrderBy(p => p.TiempoLlegada)
                      .ThenBy(p => p.Id))
         {
-            if (idsEnCola.Add(proceso.Id))
-            {
-                proceso.Estado = EstadoProceso.Listo;
-                colaFcfs.Enqueue(proceso);
-            }
+            if (!idsEnCola.Add(proceso.Id))
+                continue;
+
+            proceso.Estado = EstadoProceso.Listo;
+            colaFcfs.Enqueue(proceso);
+            incorporados.Add(proceso);
         }
+
+        return incorporados;
     }
 
     public Proceso? SeleccionarSiguiente()
@@ -59,6 +70,7 @@ public sealed class Planificador
         {
             var proceso = colaFcfs.Dequeue();
             idsEnCola.Remove(proceso.Id);
+
             if (!proceso.Terminado)
                 return proceso;
         }
