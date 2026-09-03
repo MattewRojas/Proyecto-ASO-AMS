@@ -108,6 +108,21 @@ public sealed class SimuladorPlanificacion
             }
         }
 
+        // En colas múltiples cada proceso permanece en una de tres colas fijas.
+        // Una cola de nivel superior puede desalojar a un proceso de una cola inferior.
+        if (Algoritmo == AlgoritmoPlanificacion.ColasMultiples &&
+            cpu.ProcesoActual is not null &&
+            planificador.HayColaSuperiorA(cpu.ProcesoActual))
+        {
+            var desalojado = cpu.Liberar();
+            if (desalojado is not null)
+            {
+                planificador.Reencolar(desalojado);
+                EventoGenerado?.Invoke(
+                    $"t={TiempoActual}: P{desalojado.Id:00} (cola {desalojado.Cola}) fue desalojado porque hay procesos en una cola de nivel superior.");
+            }
+        }
+
         var nuevoDespacho = false;
 
         if (cpu.ProcesoActual is null)
@@ -131,6 +146,7 @@ public sealed class SimuladorPlanificacion
                 {
                     AlgoritmoPlanificacion.RoundRobin => $" Quantum={Quantum}.",
                     AlgoritmoPlanificacion.Prioridad => $" Prioridad={siguiente.Prioridad}.",
+                    AlgoritmoPlanificacion.ColasMultiples => $" Cola={siguiente.Cola}.",
                     _ => string.Empty
                 };
 
@@ -201,7 +217,12 @@ public sealed class SimuladorPlanificacion
     {
         var incorporados = planificador.IncorporarProcesos(procesos, TiempoActual);
         foreach (var proceso in incorporados)
-            EventoGenerado?.Invoke($"t={TiempoActual}: P{proceso.Id:00} ({proceso.Nombre}) llegó y entró a listos.");
+        {
+            var detalle = Algoritmo == AlgoritmoPlanificacion.ColasMultiples
+                ? $" en cola {proceso.Cola}"
+                : string.Empty;
+            EventoGenerado?.Invoke($"t={TiempoActual}: P{proceso.Id:00} ({proceso.Nombre}) llegó y entró a listos{detalle}.");
+        }
     }
 
     private void FinalizarProceso(Proceso proceso)
