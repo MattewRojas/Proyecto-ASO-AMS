@@ -225,34 +225,20 @@ public sealed class FrmPlanificacion : Form
         {
             Dock = DockStyle.Fill,
             RowCount = 4,
-            ColumnCount = 1
+            ColumnCount = 1,
+            GrowStyle = TableLayoutPanelGrowStyle.FixedSize
         };
 
-        // Más espacio para CPU y sus cuatro líneas; métricas compactas para
-        // conservar un log suficientemente grande durante la defensa.
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 116));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 78));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 80));
-        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        // Alturas proporcionales: las tarjetas se adaptan al alto disponible
+        // y no dependen de que la ventana esté maximizada.
+        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 29));
+        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 21));
+        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 23));
+        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 27));
 
-        var cpu = Vertical();
-        cpu.Controls.Add(lblTiempo);
-        cpu.Controls.Add(lblCpu);
-        cpu.Controls.Add(lblRestante);
-        cpu.Controls.Add(lblQuantum);
-        panel.Controls.Add(Tarjeta("CPU", cpu), 0, 0);
-
-        var cola = Vertical();
-        cola.Controls.Add(lblCola);
-        cola.Controls.Add(lblRegla);
-        panel.Controls.Add(Tarjeta("LISTOS / CRITERIO", cola), 0, 1);
-
-        var metricas = Vertical();
-        metricas.Controls.Add(lblEspera);
-        metricas.Controls.Add(lblRespuesta);
-        metricas.Controls.Add(lblRetorno);
-        panel.Controls.Add(Tarjeta("MÉTRICAS", metricas), 0, 2);
-
+        panel.Controls.Add(Tarjeta("CPU", PanelEtiquetas(lblTiempo, lblCpu, lblRestante, lblQuantum)), 0, 0);
+        panel.Controls.Add(Tarjeta("LISTOS / CRITERIO", PanelEtiquetas(lblCola, lblRegla)), 0, 1);
+        panel.Controls.Add(Tarjeta("MÉTRICAS", PanelEtiquetas(lblEspera, lblRespuesta, lblRetorno)), 0, 2);
         panel.Controls.Add(Tarjeta("LOG DE PLANIFICACIÓN", rtbLog), 0, 3);
 
         return panel;
@@ -623,13 +609,29 @@ public sealed class FrmPlanificacion : Form
         return tarjeta;
     }
 
-    private static FlowLayoutPanel Vertical() => new()
+    private static TableLayoutPanel PanelEtiquetas(params Label[] etiquetas)
     {
-        Dock = DockStyle.Fill,
-        FlowDirection = FlowDirection.TopDown,
-        WrapContents = false,
-        Padding = new Padding(4, 1, 1, 1)
-    };
+        var panel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = etiquetas.Length,
+            Padding = new Padding(3, 1, 2, 1),
+            Margin = Padding.Empty
+        };
+
+        for (var i = 0; i < etiquetas.Length; i++)
+        {
+            panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100f / etiquetas.Length));
+            etiquetas[i].AutoSize = false;
+            etiquetas[i].Dock = DockStyle.Fill;
+            etiquetas[i].TextAlign = ContentAlignment.MiddleLeft;
+            etiquetas[i].Margin = Padding.Empty;
+            panel.Controls.Add(etiquetas[i], 0, i);
+        }
+
+        return panel;
+    }
 
     private static Control Campo(string titulo, Control control, int ancho)
     {
