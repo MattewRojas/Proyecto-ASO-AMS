@@ -24,7 +24,19 @@ public sealed class Kernel
     public Proceso? CrearProceso(string nombre, int memoria)
     {
         if (Estado != EstadoKernel.Ejecutando || !Memoria.Reservar(memoria)) return null;
-        var proceso = new Proceso { Id = siguienteId++, Nombre = nombre, MemoriaMB = memoria };
+
+        // En el monitor principal un proceso recién creado ya fue admitido por
+        // el kernel, así que debe quedar Listo; el primero pasa a Ejecutando.
+        // El estado Nuevo se reserva para el simulador de planificación, donde
+        // representa procesos que aún no alcanzan su tiempo de llegada.
+        var proceso = new Proceso
+        {
+            Id = siguienteId++,
+            Nombre = nombre,
+            MemoriaMB = memoria,
+            Estado = EstadoProceso.Listo
+        };
+
         Procesos.Add(proceso);
         if (CPU.ProcesoActual is null) CPU.Ejecutar(proceso);
         return proceso;
