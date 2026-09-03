@@ -20,6 +20,10 @@ public sealed class Planificador
     // Los desempates se resuelven por tiempo de llegada y luego por ID.
     private readonly PriorityQueue<Proceso, (int Rafaga, int Llegada, int Id)> colaSjf = new();
 
+    // Round Robin usa su propia cola FIFO. Un proceso que agota el quantum
+    // vuelve al final de esta cola si todavía no ha terminado.
+    private readonly Queue<Proceso> colaRoundRobin = new();
+
     private readonly HashSet<int> idsEnListos = [];
 
     public AlgoritmoPlanificacion Algoritmo { get; set; } = AlgoritmoPlanificacion.FCFS;
@@ -33,6 +37,7 @@ public sealed class Planificador
             .ThenBy(x => x.Priority.Id)
             .Select(x => x.Element)
             .ToList(),
+        AlgoritmoPlanificacion.RoundRobin => colaRoundRobin.ToList(),
         _ => colaFcfs.ToList()
     };
 
@@ -40,6 +45,7 @@ public sealed class Planificador
     {
         colaFcfs.Clear();
         colaSjf.Clear();
+        colaRoundRobin.Clear();
         idsEnListos.Clear();
     }
 
@@ -63,6 +69,10 @@ public sealed class Planificador
                     colaSjf.Enqueue(proceso, (proceso.RafagaCPU, proceso.TiempoLlegada, proceso.Id));
                     break;
 
+                case AlgoritmoPlanificacion.RoundRobin:
+                    colaRoundRobin.Enqueue(proceso);
+                    break;
+
                 default:
                     colaFcfs.Enqueue(proceso);
                     break;
@@ -80,8 +90,20 @@ public sealed class Planificador
         {
             AlgoritmoPlanificacion.FCFS => SeleccionarFcfs(),
             AlgoritmoPlanificacion.SJF => SeleccionarSjf(),
+            AlgoritmoPlanificacion.RoundRobin => SeleccionarRoundRobin(),
             _ => SeleccionarFcfs()
         };
+    }
+
+    public void Reencolar(Proceso proceso)
+    {
+        if (Algoritmo != AlgoritmoPlanificacion.RoundRobin || proceso.Terminado)
+            return;
+
+        proceso.Estado = EstadoProceso.Listo;
+
+        if (idsEnListos.Add(proceso.Id))
+            colaRoundRobin.Enqueue(proceso);
     }
 
     public void NotificarFinalizacion(Proceso proceso)
@@ -108,6 +130,20 @@ public sealed class Planificador
         while (colaSjf.Count > 0)
         {
             var proceso = colaSjf.Dequeue();
+            idsEnListos.Remove(proceso.Id);
+
+            if (!proceso.Terminado)
+                return proceso;
+        }
+
+        return null;
+    }
+
+    private Proceso? SeleccionarRoundRobin()
+    {
+        while (colaRoundRobin.Count > 0)
+        {
+            var proceso = colaRoundRobin.Dequeue();
             idsEnListos.Remove(proceso.Id);
 
             if (!proceso.Terminado)
