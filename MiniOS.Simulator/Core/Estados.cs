@@ -8,5 +8,6 @@ public enum EstadoProceso
     Listo,
     Ejecutando,
     Bloqueado,
+    Suspendido,
     Terminado
 }
