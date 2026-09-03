@@ -8,13 +8,24 @@ public sealed class SimuladorPlanificacion
     private readonly Planificador planificador = new();
     private readonly List<Proceso> procesos = [];
     private readonly List<SegmentoEjecucion> lineaTiempo = [];
+    private int quantum = 2;
 
     public int TiempoActual { get; private set; }
+    public int Quantum
+    {
+        get => quantum;
+        set => quantum = Math.Max(1, value);
+    }
+    public int QuantumRestante { get; private set; }
 
     public AlgoritmoPlanificacion Algoritmo
     {
         get => planificador.Algoritmo;
-        set => planificador.Algoritmo = value;
+        set
+        {
+            planificador.Algoritmo = value;
+            QuantumRestante = 0;
+        }
     }
 
     public IReadOnlyList<Proceso> Procesos => procesos;
@@ -58,6 +69,7 @@ public sealed class SimuladorPlanificacion
         procesos.Clear();
         lineaTiempo.Clear();
         TiempoActual = 0;
+        QuantumRestante = 0;
     }
 
     public void ReiniciarEjecucion()
@@ -66,6 +78,7 @@ public sealed class SimuladorPlanificacion
         planificador.Reiniciar();
         lineaTiempo.Clear();
         TiempoActual = 0;
+        QuantumRestante = 0;
 
         foreach (var proceso in procesos)
             proceso.PrepararParaSimulacion();
@@ -78,9 +91,9 @@ public sealed class SimuladorPlanificacion
         if (Finalizado || procesos.Count == 0)
             return;
 
-        var incorporados = planificador.IncorporarProcesos(procesos, TiempoActual);
-        foreach (var proceso in incorporados)
-            EventoGenerado?.Invoke($"t={TiempoActual}: P{proceso.Id:00} ({proceso.Nombre}) llegó y entró a listos.");
+        IncorporarLlegadas();
+
+        var nuevoDespacho = false;
 
         if (cpu.ProcesoActual is null)
         {
@@ -94,8 +107,14 @@ public sealed class SimuladorPlanificacion
                 }
 
                 cpu.Ejecutar(siguiente);
+                nuevoDespacho = true;
+
+                if (Algoritmo == AlgoritmoPlanificacion.RoundRobin)
+                    QuantumRestante = Math.Min(Quantum, siguiente.TiempoRestante);
+
                 EventoGenerado?.Invoke(
-                    $"t={TiempoActual}: CPU asignada a P{siguiente.Id:00} ({siguiente.Nombre}) por {NombreAlgoritmo}.");
+                    $"t={TiempoActual}: CPU asignada a P{siguiente.Id:00} ({siguiente.Nombre}) por {NombreAlgoritmo}." +
+                    (Algoritmo == AlgoritmoPlanificacion.RoundRobin ? $" Quantum={Quantum}." : string.Empty));
             }
         }
 
@@ -103,12 +122,19 @@ public sealed class SimuladorPlanificacion
 
         if (ejecutando is not null)
         {
-            RegistrarSegmento(ejecutando.Id, ejecutando.Nombre);
+            RegistrarSegmento(
+                ejecutando.Id,
+                ejecutando.Nombre,
+                forzarNuevo: Algoritmo == AlgoritmoPlanificacion.RoundRobin && nuevoDespacho);
+
             cpu.EjecutarTick();
+
+            if (Algoritmo == AlgoritmoPlanificacion.RoundRobin)
+                QuantumRestante = Math.Max(0, QuantumRestante - 1);
         }
         else
         {
-            RegistrarSegmento(0, "CPU libre");
+            RegistrarSegmento(0, "CPU libre", false);
         }
 
         TiempoActual++;
@@ -116,14 +142,23 @@ public sealed class SimuladorPlanificacion
 
         if (ejecutando is not null && ejecutando.Terminado)
         {
-            ejecutando.TiempoFinalizacion = TiempoActual;
-            ejecutando.TiempoRetorno = TiempoActual - ejecutando.TiempoLlegada;
-            ejecutando.TiempoEspera = ejecutando.TiempoRetorno - ejecutando.RafagaCPU;
-            planificador.NotificarFinalizacion(ejecutando);
-            cpu.Liberar(terminar: true);
-            EventoGenerado?.Invoke(
-                $"t={TiempoActual}: P{ejecutando.Id:00} finalizó. " +
-                $"Espera={ejecutando.TiempoEspera}, respuesta={ejecutando.TiempoRespuesta}, retorno={ejecutando.TiempoRetorno}.");
+            FinalizarProceso(ejecutando);
+        }
+        else if (ejecutando is not null &&
+                 Algoritmo == AlgoritmoPlanificacion.RoundRobin &&
+                 QuantumRestante == 0)
+        {
+            // Los procesos que llegan justo cuando vence el quantum entran primero
+            // a la cola; luego el proceso desalojado vuelve al final.
+            IncorporarLlegadas();
+
+            var desalojado = cpu.Liberar();
+            if (desalojado is not null)
+            {
+                planificador.Reencolar(desalojado);
+                EventoGenerado?.Invoke(
+                    $"t={TiempoActual}: P{desalojado.Id:00} agotó su quantum y vuelve al final de la cola con {desalojado.TiempoRestante} unidades restantes.");
+            }
         }
 
         if (Finalizado)
@@ -141,6 +176,27 @@ public sealed class SimuladorPlanificacion
     public double RespuestaPromedio => Promedio(p => p.TiempoRespuesta);
     public double RetornoPromedio => Promedio(p => p.TiempoRetorno);
 
+    private void IncorporarLlegadas()
+    {
+        var incorporados = planificador.IncorporarProcesos(procesos, TiempoActual);
+        foreach (var proceso in incorporados)
+            EventoGenerado?.Invoke($"t={TiempoActual}: P{proceso.Id:00} ({proceso.Nombre}) llegó y entró a listos.");
+    }
+
+    private void FinalizarProceso(Proceso proceso)
+    {
+        proceso.TiempoFinalizacion = TiempoActual;
+        proceso.TiempoRetorno = TiempoActual - proceso.TiempoLlegada;
+        proceso.TiempoEspera = proceso.TiempoRetorno - proceso.RafagaCPU;
+        planificador.NotificarFinalizacion(proceso);
+        cpu.Liberar(terminar: true);
+        QuantumRestante = 0;
+
+        EventoGenerado?.Invoke(
+            $"t={TiempoActual}: P{proceso.Id:00} finalizó. " +
+            $"Espera={proceso.TiempoEspera}, respuesta={proceso.TiempoRespuesta}, retorno={proceso.TiempoRetorno}.");
+    }
+
     private void ActualizarTiemposDeEspera()
     {
         foreach (var proceso in procesos)
@@ -154,11 +210,11 @@ public sealed class SimuladorPlanificacion
         }
     }
 
-    private void RegistrarSegmento(int procesoId, string nombreProceso)
+    private void RegistrarSegmento(int procesoId, string nombreProceso, bool forzarNuevo)
     {
         var ultimo = lineaTiempo.LastOrDefault();
 
-        if (ultimo is not null && ultimo.ProcesoId == procesoId && ultimo.Fin == TiempoActual)
+        if (!forzarNuevo && ultimo is not null && ultimo.ProcesoId == procesoId && ultimo.Fin == TiempoActual)
         {
             lineaTiempo[^1] = ultimo with { Fin = TiempoActual + 1 };
             return;
