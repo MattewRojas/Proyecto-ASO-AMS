@@ -74,7 +74,7 @@ public sealed class Planificador
             .Concat(colaNivel3)
             .ToList(),
         AlgoritmoPlanificacion.Garantizada => listosGarantizada.Values
-            .OrderBy(CalcularRatioGarantizado)
+            .OrderBy(p => CalcularRatioGarantizado(p))
             .ThenBy(p => p.TiempoLlegada)
             .ThenBy(p => p.Id)
             .ToList(),
@@ -194,7 +194,7 @@ public sealed class Planificador
             return false;
 
         var ratioActual = CalcularRatioGarantizado(procesoActual);
-        var menorRatioEnEspera = listosGarantizada.Values.Min(CalcularRatioGarantizado);
+        var menorRatioEnEspera = listosGarantizada.Values.Min(p => CalcularRatioGarantizado(p));
         return menorRatioEnEspera + 0.0001 < ratioActual;
     }
 
