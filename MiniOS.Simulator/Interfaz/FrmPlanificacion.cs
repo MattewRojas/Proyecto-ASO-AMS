@@ -86,6 +86,7 @@ public sealed class FrmPlanificacion : Form
         cboAlgoritmo.Items.Add("Round Robin");
         cboAlgoritmo.Items.Add("Prioridad (1 = más alta)");
         cboAlgoritmo.Items.Add("Colas múltiples (C1 > C2 > C3)");
+        cboAlgoritmo.Items.Add("Garantizada (cuota 1/n de CPU)");
         cboAlgoritmo.SelectedIndex = 0;
 
         ConfigurarTabla();
@@ -269,6 +270,7 @@ public sealed class FrmPlanificacion : Form
             2 => AlgoritmoPlanificacion.RoundRobin,
             3 => AlgoritmoPlanificacion.Prioridad,
             4 => AlgoritmoPlanificacion.ColasMultiples,
+            5 => AlgoritmoPlanificacion.Garantizada,
             _ => AlgoritmoPlanificacion.FCFS
         };
 
@@ -328,12 +330,24 @@ public sealed class FrmPlanificacion : Form
         procesosConfigurados.Clear();
         siguienteId = 1;
 
-        // Las colas elegidas también sirven para demostrar Colas múltiples:
-        // P01 inicia en C3, luego llegan procesos de C2 y C1 que pueden desalojarlo.
-        AgregarProcesoEjemplo("Editor", 0, 5, 2, 3);
-        AgregarProcesoEjemplo("Navegador", 1, 3, 1, 2);
-        AgregarProcesoEjemplo("Compilador", 2, 4, 3, 1);
-        AgregarProcesoEjemplo("Calculadora", 4, 2, 2, 2);
+        if (simulador.Algoritmo == AlgoritmoPlanificacion.Garantizada)
+        {
+            // Todos llegan juntos para que la cuota 1/n y el ratio de consumo
+            // puedan observarse claramente durante la demostración.
+            AgregarProcesoEjemplo("Editor", 0, 5, 2, 3);
+            AgregarProcesoEjemplo("Navegador", 0, 3, 1, 2);
+            AgregarProcesoEjemplo("Compilador", 0, 4, 3, 1);
+            AgregarProcesoEjemplo("Calculadora", 0, 2, 2, 2);
+        }
+        else
+        {
+            // Las colas elegidas también sirven para demostrar Colas múltiples:
+            // P01 inicia en C3, luego llegan procesos de C2 y C1 que pueden desalojarlo.
+            AgregarProcesoEjemplo("Editor", 0, 5, 2, 3);
+            AgregarProcesoEjemplo("Navegador", 1, 3, 1, 2);
+            AgregarProcesoEjemplo("Compilador", 2, 4, 3, 1);
+            AgregarProcesoEjemplo("Calculadora", 4, 2, 2, 2);
+        }
 
         simulador.CargarProcesos(procesosConfigurados);
         rtbLog.Clear();
@@ -455,6 +469,9 @@ public sealed class FrmPlanificacion : Form
             AlgoritmoPlanificacion.ColasMultiples => actual is null
                 ? "Cola actual: - (C1 es superior)"
                 : $"Cola actual: C{actual.Cola} (C1 > C2 > C3)",
+            AlgoritmoPlanificacion.Garantizada => actual is null
+                ? $"Garantía: 1/{Math.Max(1, simulador.ProcesosActivos)} de CPU por activo"
+                : $"CPU={actual.TiempoCpuRecibido} | ideal={simulador.TiempoIdealGarantizado(actual):F2} | r={simulador.RatioGarantizado(actual):F2}",
             _ => "Quantum: no aplica"
         };
 
@@ -471,6 +488,11 @@ public sealed class FrmPlanificacion : Form
         {
             lblCola.Text = $"C1: {IdsDeCola(1)}   C2: {IdsDeCola(2)}   C3: {IdsDeCola(3)}";
         }
+        else if (simulador.Algoritmo == AlgoritmoPlanificacion.Garantizada)
+        {
+            lblCola.Text = "Listos: " + string.Join("  →  ",
+                simulador.ColaListos.Select(p => $"P{p.Id:00}(r={simulador.RatioGarantizado(p):F2})"));
+        }
         else
         {
             lblCola.Text = "Listos: " + string.Join("  →  ",
@@ -483,6 +505,7 @@ public sealed class FrmPlanificacion : Form
             AlgoritmoPlanificacion.RoundRobin => $"RR: FIFO, apropiativo, quantum={simulador.Quantum}.",
             AlgoritmoPlanificacion.Prioridad => "Prioridad: 1 es la más alta; apropiativo.",
             AlgoritmoPlanificacion.ColasMultiples => "Colas: C1 > C2 > C3; FIFO por cola; apropiativo entre niveles.",
+            AlgoritmoPlanificacion.Garantizada => "Garantizada: cada activo ≈ 1/n; ejecuta el menor ratio CPU/ideal.",
             _ => "FCFS: FIFO, no apropiativo."
         };
 
@@ -543,7 +566,9 @@ public sealed class FrmPlanificacion : Form
                 ? $"LIBRE\n{segmento.Inicio} - {segmento.Fin}"
                 : simulador.Algoritmo == AlgoritmoPlanificacion.ColasMultiples && procesoSegmento is not null
                     ? $"P{segmento.ProcesoId:00} [C{procesoSegmento.Cola}]\n{segmento.Inicio} - {segmento.Fin}"
-                    : $"P{segmento.ProcesoId:00}\n{segmento.Inicio} - {segmento.Fin}";
+                    : simulador.Algoritmo == AlgoritmoPlanificacion.Garantizada
+                        ? $"P{segmento.ProcesoId:00} [G]\n{segmento.Inicio} - {segmento.Fin}"
+                        : $"P{segmento.ProcesoId:00}\n{segmento.Inicio} - {segmento.Fin}";
 
             pnlGantt.Controls.Add(new Label
             {
