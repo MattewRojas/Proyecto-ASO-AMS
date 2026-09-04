@@ -2,6 +2,7 @@ namespace MiniOS.Simulator;
 
 public sealed class FrmPlanificacion : Form
 {
+    private readonly Kernel kernel;
     private readonly SimuladorPlanificacion simulador = new(new CPU());
     private readonly List<Proceso> procesosConfigurados = [];
     private readonly System.Windows.Forms.Timer temporizador = new() { Interval = 650 };
@@ -81,9 +82,10 @@ public sealed class FrmPlanificacion : Form
 
     private readonly Button btnEjecutar;
 
-    public FrmPlanificacion()
+    public FrmPlanificacion(Kernel kernel)
     {
-        Text = "MiniOS - Planificación de procesos";
+        this.kernel = kernel;
+        Text = "AMS.OS - Planificación de procesos";
         StartPosition = FormStartPosition.CenterParent;
         MinimumSize = new Size(1120, 760);
         ClientSize = new Size(1280, 820);
@@ -111,7 +113,7 @@ public sealed class FrmPlanificacion : Form
         numQuantum.ValueChanged += (_, _) => CambiarQuantum();
         numCupoRam.ValueChanged += (_, _) => CambiarCupoRam();
 
-        CargarEjemplo();
+        CargarDesdeKernel();
     }
 
     private Control ConstruirInterfaz()
@@ -333,77 +335,104 @@ public sealed class FrmPlanificacion : Form
     private void AgregarProceso()
     {
         DetenerAutomatico();
-        var nombre = string.IsNullOrWhiteSpace(txtNombre.Text) ? $"Proceso {siguienteId}" : txtNombre.Text.Trim();
+
+        var nombre = string.IsNullOrWhiteSpace(txtNombre.Text)
+            ? $"Proceso {siguienteId}"
+            : txtNombre.Text.Trim();
+
         var rafaga = (int)numRafaga.Value;
 
-        procesosConfigurados.Add(new Proceso
+        var procesoKernel = kernel.CrearProcesoPlanificacion(
+            nombre,
+            64,
+            (int)numLlegada.Value,
+            rafaga,
+            (int)numPrioridad.Value,
+            (int)numCola.Value);
+
+        if (procesoKernel is null)
         {
-            Id = siguienteId++,
-            Nombre = nombre,
-            MemoriaMB = 64,
-            TiempoLlegada = (int)numLlegada.Value,
-            RafagaCPU = rafaga,
-            TiempoRestante = rafaga,
-            Prioridad = (int)numPrioridad.Value,
-            Cola = (int)numCola.Value
-        });
+            MessageBox.Show(
+                this,
+                "No hay memoria suficiente para agregar el proceso.",
+                "AMS.OS",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+
+            return;
+        }
+
+        procesosConfigurados.Add(ClonarProceso(procesoKernel));
+
+        siguienteId = procesoKernel.Id + 1;
 
         simulador.CargarProcesos(procesosConfigurados);
+
         rtbLog.Clear();
-        Registrar($"Escenario actualizado. Se agregó {nombre}.");
+        Registrar(
+            $"Escenario actualizado. Se agregó P{procesoKernel.Id:00} - {procesoKernel.Nombre}.");
+
+        ActualizarVista();
+
+        txtNombre.Clear();
+    }
+
+    private void CargarDesdeKernel()
+    {
+        DetenerAutomatico();
+
+        procesosConfigurados.Clear();
+
+        foreach (var p in kernel.Procesos.OrderBy(p => p.Id))
+        {
+            procesosConfigurados.Add(ClonarProceso(p));
+        }
+
+        siguienteId = procesosConfigurados.Count == 0
+            ? 5
+            : procesosConfigurados.Max(p => p.Id) + 1;
+
+        simulador.CargarProcesos(procesosConfigurados);
+
+        rtbLog.Clear();
+        Registrar("Procesos de AMS.OS cargados en planificación.");
+
         ActualizarVista();
     }
 
+    private static Proceso ClonarProceso(Proceso p)
+    {
+        return new Proceso
+        {
+            Id = p.Id,
+            Nombre = p.Nombre,
+            MemoriaMB = p.MemoriaMB,
+
+            TiempoLlegada = p.TiempoLlegada,
+            RafagaCPU = p.RafagaCPU,
+            TiempoRestante = p.RafagaCPU,
+            Prioridad = p.Prioridad,
+            Cola = p.Cola,
+
+            Estado = EstadoProceso.Nuevo
+        };
+    }
     private void CargarEjemplo()
     {
         DetenerAutomatico();
-        procesosConfigurados.Clear();
-        siguienteId = 1;
 
-        if (simulador.Algoritmo == AlgoritmoPlanificacion.Garantizada)
-        {
-            AgregarProcesoEjemplo("Editor", 0, 5, 2, 3);
-            AgregarProcesoEjemplo("Navegador", 0, 3, 1, 2);
-            AgregarProcesoEjemplo("Compilador", 0, 4, 3, 1);
-            AgregarProcesoEjemplo("Calculadora", 0, 2, 2, 2);
-        }
-        else if (simulador.Algoritmo == AlgoritmoPlanificacion.DosNiveles)
-        {
-            // Con cupo RAM=2: P01 y P02 entran como residentes; los siguientes
-            // esperan suspendidos y se intercambian al vencer el quantum.
-            AgregarProcesoEjemplo("Editor", 0, 5, 2, 1);
-            AgregarProcesoEjemplo("Navegador", 0, 4, 1, 1);
-            AgregarProcesoEjemplo("Compilador", 1, 3, 3, 1);
-            AgregarProcesoEjemplo("Calculadora", 2, 2, 2, 1);
-        }
-        else
-        {
-            AgregarProcesoEjemplo("Editor", 0, 5, 2, 3);
-            AgregarProcesoEjemplo("Navegador", 1, 3, 1, 2);
-            AgregarProcesoEjemplo("Compilador", 2, 4, 3, 1);
-            AgregarProcesoEjemplo("Calculadora", 4, 2, 2, 2);
-        }
+        kernel.RestaurarProcesosBase();
 
-        simulador.CargarProcesos(procesosConfigurados);
+        CargarDesdeKernel();
+
         rtbLog.Clear();
-        Registrar($"Escenario de ejemplo cargado para {simulador.NombreAlgoritmo}. Use Paso para observar cada decisión.");
+        Registrar(
+            $"Procesos base cargados para {simulador.NombreAlgoritmo}. " +
+            "P01-P04 permanecen fijos.");
+
         ActualizarVista();
     }
 
-    private void AgregarProcesoEjemplo(string nombre, int llegada, int rafaga, int prioridad, int cola)
-    {
-        procesosConfigurados.Add(new Proceso
-        {
-            Id = siguienteId++,
-            Nombre = nombre,
-            MemoriaMB = 64,
-            TiempoLlegada = llegada,
-            RafagaCPU = rafaga,
-            TiempoRestante = rafaga,
-            Prioridad = prioridad,
-            Cola = cola
-        });
-    }
 
     private void EjecutarPaso()
     {

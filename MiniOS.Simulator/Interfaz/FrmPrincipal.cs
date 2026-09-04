@@ -60,7 +60,7 @@ public sealed class FrmPrincipal : Form
 
     public FrmPrincipal()
     {
-        Text = "MiniOS Simulator";
+        Text = "AMS.OS ";
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(1050, 720);
         ClientSize = new Size(1180, 800);
@@ -300,16 +300,10 @@ public sealed class FrmPrincipal : Form
 
     private void AbrirPlanificacion()
     {
-        var relojEstabaActivo = reloj.Enabled;
-        if (relojEstabaActivo)
-            reloj.Stop();
-
         Registrar("Simulador de planificación abierto. Algoritmos disponibles: 7.");
-        using var ventana = new FrmPlanificacion();
-        ventana.ShowDialog(this);
 
-        if (relojEstabaActivo && kernel.Estado == EstadoKernel.Ejecutando)
-            reloj.Start();
+        using var ventana = new FrmPlanificacion(kernel);
+        ventana.ShowDialog(this);
 
         Registrar("Simulador de planificación cerrado.");
         Actualizar();
