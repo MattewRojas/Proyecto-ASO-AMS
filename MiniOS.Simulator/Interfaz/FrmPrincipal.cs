@@ -209,15 +209,61 @@ public sealed class FrmPrincipal : Form
     private Control PanelMemoria()
     {
         var p = Vertical();
-        p.Controls.Add(Texto("▣  ▣  ▣  ▣", 22, false, TemaMiniOS.VerdeAzulado));
+
+        p.Controls.Add(
+            Texto(
+                "▣ ▣ ▣ ▣",
+                22,
+                false,
+                TemaMiniOS.VerdeAzulado
+            )
+        );
+
         p.Controls.Add(lblMemTotal);
+
         p.Controls.Add(lblMemUsada);
+
         p.Controls.Add(lblMemDisponible);
+
         p.Controls.Add(lblUsoMemoria);
+
         p.Controls.Add(prgMemoria);
-        p.Controls.Add(BotonSecundario("Ver detalles", () => AbrirDetalle(
-            "Memoria",
-            new[] { lblMemTotal.Text, lblMemUsada.Text, lblMemDisponible.Text, lblUsoMemoria.Text })));
+
+        // NUEVO:
+        // abre la representación gráfica del bitmap.
+        p.Controls.Add(
+            BotonSecundario(
+                "▦ Abrir mapa de bits",
+                AbrirMapaBits
+            )
+        );
+
+        p.Controls.Add(
+            BotonSecundario(
+                "Ver detalles",
+                () => AbrirDetalle(
+                    "Memoria",
+                    new[]
+                    {
+                    lblMemTotal.Text,
+                    lblMemUsada.Text,
+                    lblMemDisponible.Text,
+                    lblUsoMemoria.Text,
+
+                    $"Tamaño de bloque: {kernel.Memoria.TamanoBloqueMB} MB",
+
+                    $"Bloques totales: {kernel.Memoria.TotalBloques}",
+
+                    $"Bloques ocupados: {kernel.Memoria.BloquesOcupados}",
+
+                    $"Bloques libres: {kernel.Memoria.BloquesLibres}",
+
+                    $"Fragmentación interna: {kernel.Memoria.FragmentacionInternaMB} MB"
+                    }
+                )
+            )
+        );
+
         return p;
     }
 
@@ -306,6 +352,24 @@ public sealed class FrmPrincipal : Form
         ventana.ShowDialog(this);
 
         Registrar("Simulador de planificación cerrado.");
+        Actualizar();
+    }
+
+    private void AbrirMapaBits()
+    {
+        Registrar(
+            "Administrador de memoria mediante mapa de bits abierto."
+        );
+
+        using var ventana =
+            new FrmMapaBits(kernel);
+
+        ventana.ShowDialog(this);
+
+        Registrar(
+            "Administrador de memoria cerrado."
+        );
+
         Actualizar();
     }
 
