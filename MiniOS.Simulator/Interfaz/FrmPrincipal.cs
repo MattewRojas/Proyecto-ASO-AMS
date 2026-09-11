@@ -64,6 +64,9 @@ public sealed class FrmPrincipal : Form
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(1050, 720);
         ClientSize = new Size(1180, 800);
+
+        WindowState = FormWindowState.Maximized;
+
         TemaMiniOS.Aplicar(this);
 
         ConfigurarTablaProcesos();

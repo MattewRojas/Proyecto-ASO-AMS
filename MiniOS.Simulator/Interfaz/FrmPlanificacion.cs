@@ -85,10 +85,15 @@ public sealed class FrmPlanificacion : Form
     public FrmPlanificacion(Kernel kernel)
     {
         this.kernel = kernel;
+
         Text = "AMS.OS - Planificación de procesos";
         StartPosition = FormStartPosition.CenterParent;
+
         MinimumSize = new Size(1120, 760);
         ClientSize = new Size(1280, 820);
+
+        WindowState = FormWindowState.Maximized;
+
         TemaMiniOS.Aplicar(this);
 
         cboAlgoritmo.Items.Add("FCFS - First Come, First Served");

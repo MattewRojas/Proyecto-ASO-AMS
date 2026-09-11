@@ -23,12 +23,15 @@ public sealed class FrmMapaBits : Form
     public FrmMapaBits(Kernel kernel)
     {
         this.kernel = kernel;
+        this.kernel = kernel;
 
         Text = "AMS.OS - Administración de Memoria";
         StartPosition = FormStartPosition.CenterParent;
 
         MinimumSize = new Size(1100, 700);
         ClientSize = new Size(1250, 780);
+
+        WindowState = FormWindowState.Maximized;
 
         TemaMiniOS.Aplicar(this);
 
@@ -43,15 +46,9 @@ public sealed class FrmMapaBits : Form
         {
             ColumnCount = 8,
             RowCount = 8,
-
-            AutoSize = true,
-            AutoSizeMode =
-                AutoSizeMode.GrowAndShrink,
-
-            Dock = DockStyle.Top,
-
+            AutoSize = false,
+            Dock = DockStyle.Fill,
             Padding = new Padding(8),
-
             BackColor = TemaMiniOS.Blanco
         };
 
@@ -365,12 +362,8 @@ public sealed class FrmMapaBits : Form
         var split = new SplitContainer
         {
             Dock = DockStyle.Fill,
-
-            Orientation =
-                Orientation.Vertical,
-
-            SplitterDistance = 760,
-
+            Orientation = Orientation.Vertical,
+            SplitterWidth = 6,
             BackColor = TemaMiniOS.Fondo
         };
 
@@ -387,6 +380,37 @@ public sealed class FrmMapaBits : Form
         split.Panel2.Controls.Add(
             CrearPanelProcesos()
         );
+
+        // Ajusta la división cuando el SplitContainer
+        // ya conoce su tamaño real.
+        split.SizeChanged += (_, _) =>
+        {
+            if (split.ClientSize.Width <= 0)
+                return;
+
+            // Aproximadamente 45 % mapa / 55 % tabla.
+            int distancia =
+                (int)(split.ClientSize.Width * 0.45);
+
+            int minimoIzquierdo = 500;
+            int minimoDerecho = 500;
+
+            int maximo =
+                split.ClientSize.Width -
+                minimoDerecho -
+                split.SplitterWidth;
+
+            if (maximo < minimoIzquierdo)
+                return;
+
+            distancia = Math.Clamp(
+                distancia,
+                minimoIzquierdo,
+                maximo
+            );
+
+            split.SplitterDistance = distancia;
+        };
 
         return split;
     }
@@ -776,8 +800,8 @@ public sealed class FrmMapaBits : Form
         {
             tablaBloques.ColumnStyles.Add(
                 new ColumnStyle(
-                    SizeType.Absolute,
-                    90
+                    SizeType.Percent,
+                    12.5f
                 )
             );
         }
@@ -786,8 +810,8 @@ public sealed class FrmMapaBits : Form
         {
             tablaBloques.RowStyles.Add(
                 new RowStyle(
-                    SizeType.Absolute,
-                    64
+                    SizeType.Percent,
+                    12.5f
                 )
             );
         }
@@ -827,8 +851,8 @@ public sealed class FrmMapaBits : Form
                 Margin = new Padding(3),
 
                 Text =
-                    ocupado
-                        ? $"{i}\n1 · {nombre}"
+                     ocupado
+                        ? $"{i}\n1 ·\n{nombre}"
                         : $"{i}\n0 · Libre",
 
                 TextAlign =
