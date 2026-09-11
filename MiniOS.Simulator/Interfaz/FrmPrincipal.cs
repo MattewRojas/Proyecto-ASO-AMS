@@ -211,63 +211,291 @@ public sealed class FrmPrincipal : Form
 
     private Control PanelMemoria()
     {
-        var p = Vertical();
+        // Contenedor principal del módulo de memoria.
+        var principal = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            BackColor = TemaMiniOS.Blanco,
+            Padding = new Padding(8, 5, 8, 5)
+        };
 
-        p.Controls.Add(
-            Texto(
-                "▣ ▣ ▣ ▣",
-                22,
-                false,
-                TemaMiniOS.VerdeAzulado
-            )
+        // Primera fila: pestañas.
+        principal.RowStyles.Add(
+            new RowStyle(SizeType.Absolute, 42)
         );
 
-        p.Controls.Add(lblMemTotal);
-
-        p.Controls.Add(lblMemUsada);
-
-        p.Controls.Add(lblMemDisponible);
-
-        p.Controls.Add(lblUsoMemoria);
-
-        p.Controls.Add(prgMemoria);
-
-        // NUEVO:
-        // abre la representación gráfica del bitmap.
-        p.Controls.Add(
-            BotonSecundario(
-                "▦ Abrir mapa de bits",
-                AbrirMapaBits
-            )
+        // Segunda fila: contenido de la pestaña seleccionada.
+        principal.RowStyles.Add(
+            new RowStyle(SizeType.Percent, 100)
         );
 
-        p.Controls.Add(
-            BotonSecundario(
-                "Ver detalles",
-                () => AbrirDetalle(
-                    "Memoria",
-                    new[]
-                    {
-                    lblMemTotal.Text,
-                    lblMemUsada.Text,
-                    lblMemDisponible.Text,
-                    lblUsoMemoria.Text,
+        // =========================================================
+        // BARRA DE PESTAÑAS
+        // =========================================================
 
-                    $"Tamaño de bloque: {kernel.Memoria.TamanoBloqueMB} MB",
+        var barraPestanas = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            BackColor = TemaMiniOS.Blanco,
+            Margin = new Padding(0)
+        };
 
-                    $"Bloques totales: {kernel.Memoria.TotalBloques}",
+        barraPestanas.ColumnStyles.Add(
+            new ColumnStyle(SizeType.Percent, 50)
+        );
 
-                    $"Bloques ocupados: {kernel.Memoria.BloquesOcupados}",
+        barraPestanas.ColumnStyles.Add(
+            new ColumnStyle(SizeType.Percent, 50)
+        );
 
-                    $"Bloques libres: {kernel.Memoria.BloquesLibres}",
+        // =========================================================
+        // PANEL DONDE APARECERÁ EL CONTENIDO
+        // =========================================================
 
-                    $"Fragmentación interna: {kernel.Memoria.FragmentacionInternaMB} MB"
-                    }
+        var contenido = new Panel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = TemaMiniOS.Blanco,
+            Padding = new Padding(12, 15, 12, 5)
+        };
+
+        // =========================================================
+        // PESTAÑA MULTIPROGRAMACIÓN
+        // =========================================================
+
+        var btnMultiprogramacion = new Button
+        {
+            Text = "Multiprogramación",
+            Dock = DockStyle.Fill,
+
+            FlatStyle = FlatStyle.Flat,
+
+            BackColor = TemaMiniOS.Fondo,
+            ForeColor = TemaMiniOS.VerdeOscuro,
+
+            Font = new Font(
+                "Segoe UI",
+                9.2f,
+                FontStyle.Bold
+            ),
+
+            Cursor = Cursors.Hand,
+            Margin = new Padding(0, 0, 2, 0),
+
+            UseVisualStyleBackColor = false
+        };
+
+        btnMultiprogramacion.FlatAppearance.BorderSize = 1;
+        btnMultiprogramacion.FlatAppearance.BorderColor =
+            TemaMiniOS.VerdeAzulado;
+
+        // =========================================================
+        // PESTAÑA MEMORIA VIRTUAL
+        // =========================================================
+
+        var btnMemoriaVirtual = new Button
+        {
+            Text = "Memoria virtual",
+            Dock = DockStyle.Fill,
+
+            FlatStyle = FlatStyle.Flat,
+
+            BackColor = TemaMiniOS.Fondo,
+            ForeColor = TemaMiniOS.VerdeOscuro,
+
+            Font = new Font(
+                "Segoe UI",
+                9.2f,
+                FontStyle.Bold
+            ),
+
+            Cursor = Cursors.Hand,
+            Margin = new Padding(2, 0, 0, 0),
+
+            UseVisualStyleBackColor = false
+        };
+
+        btnMemoriaVirtual.FlatAppearance.BorderSize = 1;
+        btnMemoriaVirtual.FlatAppearance.BorderColor =
+            TemaMiniOS.VerdeAzulado;
+
+        // =========================================================
+        // FUNCIÓN VISUAL PARA MARCAR LA PESTAÑA ACTIVA
+        // =========================================================
+
+        void SeleccionarPestana(Button seleccionada)
+        {
+            // Restablecemos ambas pestañas.
+            btnMultiprogramacion.BackColor =
+                TemaMiniOS.Fondo;
+
+            btnMemoriaVirtual.BackColor =
+                TemaMiniOS.Fondo;
+
+            btnMultiprogramacion.ForeColor =
+                TemaMiniOS.VerdeOscuro;
+
+            btnMemoriaVirtual.ForeColor =
+                TemaMiniOS.VerdeOscuro;
+
+            // Resaltamos la seleccionada.
+            seleccionada.BackColor =
+                TemaMiniOS.VerdeClaro;
+
+            seleccionada.ForeColor =
+                TemaMiniOS.VerdeOscuro;
+        }
+
+        // =========================================================
+        // CUANDO SE TOCA MULTIPROGRAMACIÓN
+        // =========================================================
+
+        btnMultiprogramacion.Click += (_, _) =>
+        {
+            SeleccionarPestana(
+                btnMultiprogramacion
+            );
+
+            // Limpiamos lo que hubiera antes.
+            contenido.Controls.Clear();
+
+            var opciones = new TableLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                ColumnCount = 1,
+                RowCount = 3,
+
+                Height = 120,
+
+                BackColor =
+                    TemaMiniOS.Blanco,
+
+                Padding =
+                    new Padding(5)
+            };
+
+            opciones.RowStyles.Add(
+                new RowStyle(
+                    SizeType.Absolute,
+                    38
                 )
-            )
+            );
+
+            opciones.RowStyles.Add(
+                new RowStyle(
+                    SizeType.Absolute,
+                    38
+                )
+            );
+
+            opciones.RowStyles.Add(
+                new RowStyle(
+                    SizeType.Absolute,
+                    38
+                )
+            );
+
+            // -----------------------------
+            // MAPA DE BITS
+            // -----------------------------
+
+            var btnMapaBits =
+                BotonSecundario(
+                    "▦  Mapa de bits",
+                    AbrirMapaBits
+                );
+
+            // -----------------------------
+            // LISTAS LIGADAS
+            // -----------------------------
+
+            var btnListasLigadas =
+                BotonSecundario(
+                    "☷  Listas ligadas",
+                    AbrirListasLigadas
+                );
+
+            // -----------------------------
+            // ASOCIADOS
+            // -----------------------------
+
+            var btnAsociados =
+                BotonSecundario(
+                    "◉  Asociados",
+                    AbrirAsociados
+                );
+
+            opciones.Controls.Add(
+                btnMapaBits,
+                0,
+                0
+            );
+
+            opciones.Controls.Add(
+                btnListasLigadas,
+                0,
+                1
+            );
+
+            opciones.Controls.Add(
+                btnAsociados,
+                0,
+                2
+            );
+
+            contenido.Controls.Add(
+                opciones
+            );
+        };
+
+        // =========================================================
+        // CUANDO SE TOCA MEMORIA VIRTUAL
+        // =========================================================
+
+        btnMemoriaVirtual.Click += (_, _) =>
+        {
+            SeleccionarPestana(
+                btnMemoriaVirtual
+            );
+
+            // Por ahora dejamos esta sección vacía.
+            // Aquí construiremos después la memoria virtual.
+            contenido.Controls.Clear();
+        };
+
+        // =========================================================
+        // AGREGAR CONTROLES
+        // =========================================================
+
+        barraPestanas.Controls.Add(
+            btnMultiprogramacion,
+            0,
+            0
         );
 
-        return p;
+        barraPestanas.Controls.Add(
+            btnMemoriaVirtual,
+            1,
+            0
+        );
+
+        principal.Controls.Add(
+            barraPestanas,
+            0,
+            0
+        );
+
+        principal.Controls.Add(
+            contenido,
+            0,
+            1
+        );
+
+        return principal;
     }
 
     private void ConfigurarTablaProcesos()
@@ -374,6 +602,28 @@ public sealed class FrmPrincipal : Form
         );
 
         Actualizar();
+    }
+
+    private void AbrirListasLigadas()
+    {
+        MessageBox.Show(
+            this,
+            "El módulo de Listas ligadas será implementado posteriormente.",
+            "AMS.OS - Listas ligadas",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information
+        );
+    }
+
+    private void AbrirAsociados()
+    {
+        MessageBox.Show(
+            this,
+            "El módulo de Asociados será implementado posteriormente.",
+            "AMS.OS - Asociados",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information
+        );
     }
 
     private void AbrirExploradorArchivos()
