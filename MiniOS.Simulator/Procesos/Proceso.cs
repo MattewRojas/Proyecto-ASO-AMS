@@ -6,7 +6,7 @@ public sealed class Proceso
     public string Nombre { get; init; } = "Proceso";
     public int MemoriaMB { get; init; }
 
-    // Datos utilizados por los algoritmos de planificación.
+    // Datos usados por los algoritmos de planificación.
     public int TiempoLlegada { get; set; }
     public int RafagaCPU { get; set; } = 1;
     public int TiempoRestante { get; set; } = 1;
@@ -23,8 +23,8 @@ public sealed class Proceso
     public int TiempoRetorno { get; set; }
     public int TiempoCpuRecibido { get; set; }
 
-    // En planificación garantizada esta propiedad acumula la porción de CPU
-    // que le habría correspondido al proceso en cada tick mientras estuvo activo.
+    /* En planificación garantizada esta propiedad acumula la porción de CPU
+    que le habría correspondido al proceso en cada tick mientras estuvo activo. */
     public double TiempoCpuIdealAcumulado { get; set; }
 
     public bool Terminado => TiempoRestante <= 0 || Estado == EstadoProceso.Terminado;

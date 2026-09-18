@@ -18,17 +18,14 @@ public sealed class Planificador
     private readonly Queue<Proceso> colaRoundRobin = new();
     private readonly PriorityQueue<Proceso, (int Prioridad, int Llegada, int Id)> colaPrioridad = new();
 
-    // Colas múltiples mantiene tres estructuras FIFO independientes.
     private readonly Queue<Proceso> colaNivel1 = new();
     private readonly Queue<Proceso> colaNivel2 = new();
     private readonly Queue<Proceso> colaNivel3 = new();
 
-    // Garantizada conserva los listos en un conjunto y reconstruye una cola
-    // de prioridad en cada decisión porque el ratio CPU recibida / CPU ideal cambia.
+    
     private readonly Dictionary<int, Proceso> listosGarantizada = new();
 
-    // Dos niveles: el planificador superior administra residencia RAM/disco,
-    // mientras el inferior selecciona únicamente entre procesos residentes.
+    
     private readonly Queue<Proceso> colaResidentesDosNiveles = new();
     private readonly Queue<Proceso> colaSuspendidosDosNiveles = new();
     private readonly Dictionary<int, Proceso> residentesDosNiveles = new();
@@ -263,9 +260,7 @@ public sealed class Planificador
         return promovidos;
     }
 
-    // Cuando vence el quantum del nivel inferior y hay procesos suspendidos,
-    // se produce un intercambio: el que acaba de usar CPU sale a disco y el
-    // suspendido más antiguo entra en RAM. Si no hay suspendidos, solo reencola.
+   
     public Proceso? RotarDosNiveles(Proceso procesoEjecutado)
     {
         if (Algoritmo != AlgoritmoPlanificacion.DosNiveles || procesoEjecutado.Terminado)

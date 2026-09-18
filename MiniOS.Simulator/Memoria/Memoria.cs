@@ -6,11 +6,8 @@ namespace MiniOS.Simulator;
 
 public sealed class Memoria
 {
-    // =========================================================
+
     // CONFIGURACIÓN GENERAL
-    // =========================================================
-
-
     public int TotalMB { get; } = 4096;
 
     // Cada bloque de memoria representa 64 MB.
@@ -19,15 +16,10 @@ public sealed class Memoria
     // 4096 / 64 = 64 bloques.
     public int TotalBloques => TotalMB / TamanoBloqueMB;
 
-    // =========================================================
     // MAPA DE BITS
-    // =========================================================
-
     private readonly bool[] mapaBits;
 
-
     private readonly int?[] propietarioBloque;
-
 
     private readonly Dictionary<int, int> memoriaSolicitadaProcesos = new();
 
@@ -37,10 +29,7 @@ public sealed class Memoria
         propietarioBloque = new int?[TotalBloques];
     }
 
-    // =========================================================
     // INFORMACIÓN GENERAL
-    // =========================================================
-
     public int UsadaMB =>
         mapaBits.Count(bloque => bloque) * TamanoBloqueMB;
 
@@ -65,10 +54,7 @@ public sealed class Memoria
     public int FragmentacionInternaMB =>
         Math.Max(0, UsadaMB - MemoriaSolicitadaTotalMB);
 
-    // =========================================================
     // CALCULAR BLOQUES NECESARIOS
-    // =========================================================
-
     public int CalcularBloquesNecesarios(int memoriaMB)
     {
         if (memoriaMB <= 0)
@@ -79,10 +65,7 @@ public sealed class Memoria
         );
     }
 
-    // =========================================================
     // RESERVAR MEMORIA PARA UN PROCESO
-    // =========================================================
-
     public bool ReservarProceso(int procesoId, int memoriaMB)
     {
         return ReservarProceso(
@@ -132,17 +115,12 @@ public sealed class Memoria
 
             bloquesAsignados.Add(i);
         }
-
         memoriaSolicitadaProcesos[procesoId] = memoriaMB;
 
         return true;
     }
 
-    // =========================================================
     // COMPATIBILIDAD CON EL MÉTODO ANTERIOR
-    // =========================================================
-
-
     public bool Reservar(int mb)
     {
         if (mb <= 0)
@@ -164,17 +142,12 @@ public sealed class Memoria
         {
             mapaBits[i] = true;
 
-
             propietarioBloque[i] = null;
         }
-
         return true;
     }
 
-    // =========================================================
     // BUSCAR BLOQUES CONSECUTIVOS
-    // =========================================================
-
     private int BuscarBloquesContiguos(
         int bloquesNecesarios)
     {
@@ -203,10 +176,7 @@ public sealed class Memoria
         return -1;
     }
 
-    // =========================================================
     // LIBERAR MEMORIA DE UN PROCESO
-    // =========================================================
-
     public bool LiberarProceso(int procesoId)
     {
         bool encontrado = false;
@@ -227,11 +197,7 @@ public sealed class Memoria
         return encontrado;
     }
 
-    // =========================================================
     // MÉTODO ANTIGUO LIBERAR
-    // =========================================================
-
-  
     public void Liberar(int mb)
     {
         if (mb <= 0)
@@ -272,10 +238,7 @@ public sealed class Memoria
         }
     }
 
-    // =========================================================
     // LIBERAR TODA LA MEMORIA
-    // =========================================================
-
     public void LiberarToda()
     {
         for (int i = 0; i < mapaBits.Length; i++)
@@ -287,10 +250,7 @@ public sealed class Memoria
         memoriaSolicitadaProcesos.Clear();
     }
 
-    // =========================================================
     // CONSULTAR ESTADO DE UN BLOQUE
-    // =========================================================
-
     public bool EstaOcupado(int numeroBloque)
     {
         ValidarNumeroBloque(numeroBloque);
@@ -298,10 +258,7 @@ public sealed class Memoria
         return mapaBits[numeroBloque];
     }
 
-    // =========================================================
     // CONSULTAR PROPIETARIO
-    // =========================================================
-
     public int? ObtenerPropietarioBloque(
         int numeroBloque)
     {
@@ -310,10 +267,7 @@ public sealed class Memoria
         return propietarioBloque[numeroBloque];
     }
 
-    // =========================================================
     // OBTENER BLOQUES DE UN PROCESO
-    // =========================================================
-
     public List<int> ObtenerBloquesProceso(
         int procesoId)
     {
@@ -328,10 +282,7 @@ public sealed class Memoria
         return bloques;
     }
 
-    // =========================================================
     // REPRESENTACIÓN DEL BITMAP
-    // =========================================================
-
     public string ObtenerMapaBitsTexto()
     {
         return string.Join(
@@ -347,10 +298,7 @@ public sealed class Memoria
         return (bool[])mapaBits.Clone();
     }
 
-    // =========================================================
     // MEMORIA ASIGNADA A UN PROCESO
-    // =========================================================
-
     public int ObtenerMemoriaAsignadaMB(
         int procesoId)
     {
@@ -362,10 +310,7 @@ public sealed class Memoria
         return bloques * TamanoBloqueMB;
     }
 
-    // =========================================================
     // VALIDACIÓN
-    // =========================================================
-
     private void ValidarNumeroBloque(
         int numeroBloque)
     {
