@@ -462,9 +462,29 @@ public sealed class FrmPrincipal : Form
                 btnMemoriaVirtual
             );
 
-            // Por ahora dejamos esta sección vacía.
-            // Aquí construiremos después la memoria virtual.
             contenido.Controls.Clear();
+            var opciones = new TableLayoutPanel
+            {
+                Dock = DockStyle.Top, ColumnCount = 1, RowCount = 5,
+                Height = 210, BackColor = TemaMiniOS.Blanco
+            };
+            opciones.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            opciones.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+            var titulo = Texto("Algoritmos de reemplazo de páginas", 10, true);
+            opciones.Controls.Add(titulo, 0, 0);
+            int fila = 1;
+            foreach (var algoritmo in Enum.GetValues<AlgoritmoReemplazo>())
+            {
+                opciones.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+                opciones.Controls.Add(BotonSecundario(algoritmo.ToString(), () =>
+                {
+                    Registrar($"Simulador de memoria virtual abierto: {algoritmo}.");
+                    using var ventana = new FrmMemoriaVirtual(algoritmo, mensaje => Registrar(mensaje));
+                    ventana.ShowDialog(this);
+                    Registrar("Simulador de memoria virtual cerrado.");
+                }), 0, fila++);
+            }
+            contenido.Controls.Add(opciones);
         };
 
         // =========================================================
