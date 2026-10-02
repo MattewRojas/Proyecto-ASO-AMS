@@ -97,6 +97,18 @@ public sealed class SimuladorMemoriaVirtual
         return true;
     }
 
+    public static bool IntentarLeerReferencias(string texto, AlgoritmoReemplazo algoritmo,
+        out ReferenciaPagina[] resultado, out string error)
+    {
+        resultado = [];
+        if (algoritmo != AlgoritmoReemplazo.NRU && texto.Contains('*'))
+        {
+            error = $"{algoritmo} utiliza solo números de página. Quite los asteriscos; la escritura (*) se configura únicamente en NRU.";
+            return false;
+        }
+        return IntentarLeerReferencias(texto, out resultado, out error);
+    }
+
     public PasoMemoriaVirtual? Avanzar()
     {
         if (Terminado) return null;
