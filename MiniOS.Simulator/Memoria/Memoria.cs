@@ -6,155 +6,297 @@ namespace MiniOS.Simulator;
 
 public sealed class Memoria
 {
-
+    // =========================================================
     // CONFIGURACIÓN GENERAL
-    public int TotalMB { get; } = 4096;
+    // =========================================================
 
-    // Cada bloque de memoria representa 64 MB.
-    public int TamanoBloqueMB { get; } = 64;
+    // Todos los módulos de memoria trabajarán con 1024 MB.
+    public int TotalMB { get; } = 1024;
 
-    // 4096 / 64 = 64 bloques.
-    public int TotalBloques => TotalMB / TamanoBloqueMB;
+    // Unidad de asignación inicial.
+    // El usuario puede modificarla desde FrmMapaBits.
+    public int UnidadAsignacionMB { get; private set; } = 4;
 
-    // MAPA DE BITS
-    private readonly bool[] mapaBits;
+    // Compatibilidad con código anterior que todavía utilice
+    // el nombre TamanoBloqueMB.
+    public int TamanoBloqueMB => UnidadAsignacionMB;
 
-    private readonly int?[] propietarioBloque;
+    // Mapa:
+    // false = 0 = libre
+    // true  = 1 = ocupado
+    private bool[] mapaBits = [];
 
-    private readonly Dictionary<int, int> memoriaSolicitadaProcesos = new();
+    // PID propietario de cada casilla.
+    // null significa que no tiene propietario.
+    private int?[] propietarios = [];
+
+    // Memoria que realmente solicitó cada proceso.
+    // Se utiliza para calcular fragmentación interna.
+    private readonly Dictionary<int, int> memoriaSolicitada = new();
+
+    // =========================================================
+    // CONSTRUCTOR
+    // =========================================================
 
     public Memoria()
     {
-        mapaBits = new bool[TotalBloques];
-        propietarioBloque = new int?[TotalBloques];
+        InicializarMapa();
     }
 
-    // INFORMACIÓN GENERAL
+    // =========================================================
+    // PROPIEDADES GENERALES
+    // =========================================================
+
+    public int TotalBloques =>
+        TotalMB / UnidadAsignacionMB;
+
+    public int BloquesOcupados =>
+        mapaBits.Count(b => b);
+
+    public int BloquesLibres =>
+        TotalBloques - BloquesOcupados;
+
     public int UsadaMB =>
-        mapaBits.Count(bloque => bloque) * TamanoBloqueMB;
+        BloquesOcupados * UnidadAsignacionMB;
 
     public int DisponibleMB =>
         TotalMB - UsadaMB;
 
-    public int Porcentaje =>
-        TotalMB == 0
-            ? 0
-            : UsadaMB * 100 / TotalMB;
-
-    public int BloquesOcupados =>
-        mapaBits.Count(bloque => bloque);
-
-    public int BloquesLibres =>
-        mapaBits.Count(bloque => !bloque);
-
-
-    public int MemoriaSolicitadaTotalMB =>
-        memoriaSolicitadaProcesos.Values.Sum();
-
-    public int FragmentacionInternaMB =>
-        Math.Max(0, UsadaMB - MemoriaSolicitadaTotalMB);
-
-    // CALCULAR BLOQUES NECESARIOS
-    public int CalcularBloquesNecesarios(int memoriaMB)
+    // Esta propiedad la utiliza FrmPrincipal.
+    public int Porcentaje
     {
-        if (memoriaMB <= 0)
-            return 0;
+        get
+        {
+            if (TotalMB <= 0)
+                return 0;
 
-        return (int)Math.Ceiling(
-            (double)memoriaMB / TamanoBloqueMB
-        );
+            return (int)Math.Round(
+                UsadaMB * 100.0 / TotalMB
+            );
+        }
     }
 
+    // =========================================================
+    // FRAGMENTACIÓN INTERNA TOTAL
+    // =========================================================
+
+    public int FragmentacionInternaMB
+    {
+        get
+        {
+            int total = 0;
+
+            foreach (var par in memoriaSolicitada)
+            {
+                int procesoId = par.Key;
+                int solicitada = par.Value;
+
+                int asignada =
+                    ObtenerMemoriaAsignadaProceso(
+                        procesoId
+                    );
+
+                total += Math.Max(
+                    0,
+                    asignada - solicitada
+                );
+            }
+
+            return total;
+        }
+    }
+
+    // =========================================================
+    // CREAR / RECREAR MAPA
+    // =========================================================
+
+    private void InicializarMapa()
+    {
+        int cantidad =
+            TotalMB / UnidadAsignacionMB;
+
+        mapaBits =
+            new bool[cantidad];
+
+        propietarios =
+            new int?[cantidad];
+    }
+
+    // =========================================================
+    // CAMBIAR UNIDAD DE ASIGNACIÓN
+    // =========================================================
+
+    public bool ReconfigurarUnidadAsignacion(
+        int nuevaUnidadMB,
+        IEnumerable<Proceso> procesos)
+    {
+        // La unidad debe ser positiva.
+        if (nuevaUnidadMB <= 0)
+            return false;
+
+        // Debe dividir exactamente la memoria total.
+        //
+        // Ejemplo:
+        // 1024 / 4 = 256 casillas
+        //
+        // 1024 / 3 no sería válido.
+        if (TotalMB % nuevaUnidadMB != 0)
+            return false;
+
+        // Solo recolocamos procesos que todavía
+        // forman parte activa del sistema.
+        var activos =
+            procesos
+                .Where(p => !p.Terminado)
+                .OrderBy(p => p.Id)
+                .ToList();
+
+        int cantidadCasillas =
+            TotalMB / nuevaUnidadMB;
+
+        // Creamos el nuevo mapa de manera temporal.
+        // Así no destruimos el mapa actual hasta estar
+        // seguros de que todos los procesos caben.
+        var nuevoMapa =
+            new bool[cantidadCasillas];
+
+        var nuevosPropietarios =
+            new int?[cantidadCasillas];
+
+        var nuevasSolicitudes =
+            new Dictionary<int, int>();
+
+        int cursor = 0;
+
+        foreach (var proceso in activos)
+        {
+            int casillasNecesarias =
+                (int)Math.Ceiling(
+                    proceso.MemoriaMB /
+                    (double)nuevaUnidadMB
+                );
+
+            // No cabe con esta configuración.
+            if (
+                cursor + casillasNecesarias >
+                cantidadCasillas)
+            {
+                return false;
+            }
+
+            for (
+                int i = cursor;
+                i < cursor + casillasNecesarias;
+                i++)
+            {
+                nuevoMapa[i] = true;
+
+                nuevosPropietarios[i] =
+                    proceso.Id;
+            }
+
+            nuevasSolicitudes[proceso.Id] =
+                proceso.MemoriaMB;
+
+            cursor += casillasNecesarias;
+        }
+
+        // Solo después de comprobar que todo cabe
+        // aplicamos realmente la nueva configuración.
+        UnidadAsignacionMB =
+            nuevaUnidadMB;
+
+        mapaBits =
+            nuevoMapa;
+
+        propietarios =
+            nuevosPropietarios;
+
+        memoriaSolicitada.Clear();
+
+        foreach (var par in nuevasSolicitudes)
+        {
+            memoriaSolicitada[par.Key] =
+                par.Value;
+        }
+
+        return true;
+    }
+
+    // =========================================================
     // RESERVAR MEMORIA PARA UN PROCESO
-    public bool ReservarProceso(int procesoId, int memoriaMB)
-    {
-        return ReservarProceso(
-            procesoId,
-            memoriaMB,
-            out _
-        );
-    }
+    // =========================================================
 
     public bool ReservarProceso(
         int procesoId,
-        int memoriaMB,
-        out List<int> bloquesAsignados)
+        int memoriaMB)
     {
-        bloquesAsignados = new List<int>();
-
-        if (procesoId <= 0 || memoriaMB <= 0)
+        if (memoriaMB <= 0)
             return false;
 
-
-        if (propietarioBloque.Any(p => p == procesoId))
-            return false;
-
-        int bloquesNecesarios =
-            CalcularBloquesNecesarios(memoriaMB);
-
-        if (bloquesNecesarios <= 0)
-            return false;
-
-        if (bloquesNecesarios > BloquesLibres)
-            return false;
-
-        // Buscamos bloques consecutivos.
-        int posicionInicial =
-            BuscarBloquesContiguos(bloquesNecesarios);
-
-        if (posicionInicial == -1)
-            return false;
-
-        for (
-            int i = posicionInicial;
-            i < posicionInicial + bloquesNecesarios;
-            i++)
+        // Evitamos reservar dos veces el mismo PID.
+        if (
+            memoriaSolicitada.ContainsKey(
+                procesoId))
         {
-            mapaBits[i] = true;
-            propietarioBloque[i] = procesoId;
-
-            bloquesAsignados.Add(i);
-        }
-        memoriaSolicitadaProcesos[procesoId] = memoriaMB;
-
-        return true;
-    }
-
-    // COMPATIBILIDAD CON EL MÉTODO ANTERIOR
-    public bool Reservar(int mb)
-    {
-        if (mb <= 0)
             return false;
+        }
 
+        // Ejemplo:
+        //
+        // memoria = 202 MB
+        // unidad = 4 MB
+        //
+        // 202 / 4 = 50.5
+        // necesitamos 51 casillas.
         int bloquesNecesarios =
-            CalcularBloquesNecesarios(mb);
+            (int)Math.Ceiling(
+                memoriaMB /
+                (double)UnidadAsignacionMB
+            );
 
-        int posicionInicial =
-            BuscarBloquesContiguos(bloquesNecesarios);
+        int inicio =
+            BuscarHuecoContiguo(
+                bloquesNecesarios
+            );
 
-        if (posicionInicial == -1)
+        if (inicio < 0)
             return false;
 
         for (
-            int i = posicionInicial;
-            i < posicionInicial + bloquesNecesarios;
+            int i = inicio;
+            i < inicio + bloquesNecesarios;
             i++)
         {
             mapaBits[i] = true;
 
-            propietarioBloque[i] = null;
+            propietarios[i] =
+                procesoId;
         }
+
+        memoriaSolicitada[procesoId] =
+            memoriaMB;
+
         return true;
     }
 
-    // BUSCAR BLOQUES CONSECUTIVOS
-    private int BuscarBloquesContiguos(
+    // =========================================================
+    // BUSCAR ESPACIO CONTIGUO
+    // =========================================================
+
+    private int BuscarHuecoContiguo(
         int bloquesNecesarios)
     {
-        int consecutivos = 0;
-        int inicio = -1;
+        if (bloquesNecesarios <= 0)
+            return -1;
 
-        for (int i = 0; i < mapaBits.Length; i++)
+        int consecutivos = 0;
+        int inicio = 0;
+
+        for (
+            int i = 0;
+            i < mapaBits.Length;
+            i++)
         {
             if (!mapaBits[i])
             {
@@ -163,165 +305,326 @@ public sealed class Memoria
 
                 consecutivos++;
 
-                if (consecutivos == bloquesNecesarios)
+                if (
+                    consecutivos >=
+                    bloquesNecesarios)
+                {
                     return inicio;
+                }
             }
             else
             {
                 consecutivos = 0;
-                inicio = -1;
             }
         }
 
         return -1;
     }
 
-    // LIBERAR MEMORIA DE UN PROCESO
-    public bool LiberarProceso(int procesoId)
+    // =========================================================
+    // LIBERAR UN PROCESO
+    // =========================================================
+
+    public bool LiberarProceso(
+        int procesoId)
     {
         bool encontrado = false;
 
-        for (int i = 0; i < propietarioBloque.Length; i++)
+        for (
+            int i = 0;
+            i < propietarios.Length;
+            i++)
         {
-            if (propietarioBloque[i] == procesoId)
+            if (
+                propietarios[i] ==
+                procesoId)
             {
                 mapaBits[i] = false;
-                propietarioBloque[i] = null;
+
+                propietarios[i] =
+                    null;
 
                 encontrado = true;
             }
         }
 
-        memoriaSolicitadaProcesos.Remove(procesoId);
+        if (encontrado)
+        {
+            memoriaSolicitada.Remove(
+                procesoId
+            );
+        }
 
         return encontrado;
     }
 
-    // MÉTODO ANTIGUO LIBERAR
-    public void Liberar(int mb)
+    // =========================================================
+    // LIBERAR TODA LA MEMORIA
+    // =========================================================
+
+    // Este método es necesario porque Kernel.cs
+    // todavía lo utiliza al restaurar o reiniciar procesos.
+    public void LiberarToda()
     {
-        if (mb <= 0)
+        Array.Fill(
+            mapaBits,
+            false
+        );
+
+        Array.Fill<int?>(
+            propietarios,
+            null
+        );
+
+        memoriaSolicitada.Clear();
+    }
+
+    // =========================================================
+    // CONSULTAR CASILLA
+    // =========================================================
+
+    public bool EstaOcupado(
+        int indice)
+    {
+        if (
+            indice < 0 ||
+            indice >= mapaBits.Length)
+        {
+            return false;
+        }
+
+        return mapaBits[indice];
+    }
+
+    // =========================================================
+    // OBTENER PROPIETARIO
+    // =========================================================
+
+    public int? ObtenerPropietarioBloque(
+        int indice)
+    {
+        if (
+            indice < 0 ||
+            indice >= propietarios.Length)
+        {
+            return null;
+        }
+
+        return propietarios[indice];
+    }
+
+    // =========================================================
+    // OBTENER CASILLAS DE UN PROCESO
+    // =========================================================
+
+    public List<int> ObtenerBloquesProceso(
+        int procesoId)
+    {
+        var resultado =
+            new List<int>();
+
+        for (
+            int i = 0;
+            i < propietarios.Length;
+            i++)
+        {
+            if (
+                propietarios[i] ==
+                procesoId)
+            {
+                resultado.Add(i);
+            }
+        }
+
+        return resultado;
+    }
+
+    // =========================================================
+    // MEMORIA ASIGNADA A UN PROCESO
+    // =========================================================
+
+    public int ObtenerMemoriaAsignadaProceso(
+        int procesoId)
+    {
+        int cantidadCasillas =
+            ObtenerBloquesProceso(
+                procesoId
+            ).Count;
+
+        return
+            cantidadCasillas *
+            UnidadAsignacionMB;
+    }
+
+    // ---------------------------------------------------------
+    // Alias de compatibilidad.
+    //
+    // Algunas partes anteriores del proyecto utilizaban
+    // ObtenerMemoriaAsignadaMB().
+    // ---------------------------------------------------------
+
+    public int ObtenerMemoriaAsignadaMB(
+        int procesoId)
+    {
+        return ObtenerMemoriaAsignadaProceso(
+            procesoId
+        );
+    }
+
+    // =========================================================
+    // MEMORIA SOLICITADA
+    // =========================================================
+
+    public int ObtenerMemoriaSolicitadaProceso(
+        int procesoId)
+    {
+        return memoriaSolicitada
+            .TryGetValue(
+                procesoId,
+                out int valor)
+            ? valor
+            : 0;
+    }
+
+    // =========================================================
+    // FRAGMENTACIÓN DE UN PROCESO
+    // =========================================================
+
+    public int ObtenerFragmentacionProceso(
+        int procesoId)
+    {
+        int solicitada =
+            ObtenerMemoriaSolicitadaProceso(
+                procesoId
+            );
+
+        int asignada =
+            ObtenerMemoriaAsignadaProceso(
+                procesoId
+            );
+
+        return Math.Max(
+            0,
+            asignada - solicitada
+        );
+    }
+
+    // =========================================================
+    // REPRESENTACIÓN BINARIA
+    // =========================================================
+
+    public string ObtenerRepresentacionBinaria()
+    {
+        return string.Join(
+            " ",
+            mapaBits.Select(
+                ocupado =>
+                    ocupado
+                        ? "1"
+                        : "0"
+            )
+        );
+    }
+
+    // Alias para mantener compatibilidad con el
+    // FrmMapaBits anterior.
+    public string ObtenerMapaBitsTexto()
+    {
+        return ObtenerRepresentacionBinaria();
+    }
+
+    // =========================================================
+    // COMPATIBILIDAD CON CÓDIGO ANTERIOR
+    // =========================================================
+
+    // Estos métodos se mantienen porque otras partes del
+    // simulador pueden seguir haciendo reservas generales.
+
+    public bool Reservar(
+        int memoriaMB)
+    {
+        if (memoriaMB <= 0)
+            return false;
+
+        int bloquesNecesarios =
+            (int)Math.Ceiling(
+                memoriaMB /
+                (double)UnidadAsignacionMB
+            );
+
+        int inicio =
+            BuscarHuecoContiguo(
+                bloquesNecesarios
+            );
+
+        if (inicio < 0)
+            return false;
+
+        for (
+            int i = inicio;
+            i < inicio + bloquesNecesarios;
+            i++)
+        {
+            mapaBits[i] = true;
+        }
+
+        return true;
+    }
+
+    public void Liberar(
+        int memoriaMB)
+    {
+        if (memoriaMB <= 0)
             return;
 
-        if (mb >= UsadaMB)
+        if (memoriaMB >= UsadaMB)
         {
             LiberarToda();
             return;
         }
 
-        int bloquesALiberar =
-            CalcularBloquesNecesarios(mb);
+        int bloquesLiberar =
+            (int)Math.Ceiling(
+                memoriaMB /
+                (double)UnidadAsignacionMB
+            );
 
         for (
             int i = mapaBits.Length - 1;
-            i >= 0 && bloquesALiberar > 0;
+            i >= 0 &&
+            bloquesLiberar > 0;
             i--)
         {
             if (!mapaBits[i])
                 continue;
 
-            int? propietario = propietarioBloque[i];
+            int? propietario =
+                propietarios[i];
 
-            mapaBits[i] = false;
-            propietarioBloque[i] = null;
+            mapaBits[i] =
+                false;
 
-            bloquesALiberar--;
+            propietarios[i] =
+                null;
 
-            if (propietario.HasValue &&
-                !propietarioBloque.Any(
-                    p => p == propietario.Value))
+            bloquesLiberar--;
+
+            if (propietario.HasValue)
             {
-                memoriaSolicitadaProcesos.Remove(
-                    propietario.Value
-                );
+                bool quedanBloques =
+                    propietarios.Any(
+                        p =>
+                            p ==
+                            propietario
+                    );
+
+                if (!quedanBloques)
+                {
+                    memoriaSolicitada.Remove(
+                        propietario.Value
+                    );
+                }
             }
-        }
-    }
-
-    // LIBERAR TODA LA MEMORIA
-    public void LiberarToda()
-    {
-        for (int i = 0; i < mapaBits.Length; i++)
-        {
-            mapaBits[i] = false;
-            propietarioBloque[i] = null;
-        }
-
-        memoriaSolicitadaProcesos.Clear();
-    }
-
-    // CONSULTAR ESTADO DE UN BLOQUE
-    public bool EstaOcupado(int numeroBloque)
-    {
-        ValidarNumeroBloque(numeroBloque);
-
-        return mapaBits[numeroBloque];
-    }
-
-    // CONSULTAR PROPIETARIO
-    public int? ObtenerPropietarioBloque(
-        int numeroBloque)
-    {
-        ValidarNumeroBloque(numeroBloque);
-
-        return propietarioBloque[numeroBloque];
-    }
-
-    // OBTENER BLOQUES DE UN PROCESO
-    public List<int> ObtenerBloquesProceso(
-        int procesoId)
-    {
-        var bloques = new List<int>();
-
-        for (int i = 0; i < propietarioBloque.Length; i++)
-        {
-            if (propietarioBloque[i] == procesoId)
-                bloques.Add(i);
-        }
-
-        return bloques;
-    }
-
-    // REPRESENTACIÓN DEL BITMAP
-    public string ObtenerMapaBitsTexto()
-    {
-        return string.Join(
-            " ",
-            mapaBits.Select(
-                ocupado => ocupado ? "1" : "0"
-            )
-        );
-    }
-
-    public bool[] ObtenerMapaBits()
-    {
-        return (bool[])mapaBits.Clone();
-    }
-
-    // MEMORIA ASIGNADA A UN PROCESO
-    public int ObtenerMemoriaAsignadaMB(
-        int procesoId)
-    {
-        int bloques =
-            propietarioBloque.Count(
-                p => p == procesoId
-            );
-
-        return bloques * TamanoBloqueMB;
-    }
-
-    // VALIDACIÓN
-    private void ValidarNumeroBloque(
-        int numeroBloque)
-    {
-        if (
-            numeroBloque < 0 ||
-            numeroBloque >= TotalBloques)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(numeroBloque),
-                $"El bloque debe estar entre 0 y {TotalBloques - 1}."
-            );
         }
     }
 }
