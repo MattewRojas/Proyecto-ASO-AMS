@@ -626,24 +626,38 @@ public sealed class FrmPrincipal : Form
 
     private void AbrirListasLigadas()
     {
-        MessageBox.Show(
-            this,
-            "El módulo de Listas ligadas será implementado posteriormente.",
-            "AMS.OS - Listas ligadas",
-            MessageBoxButtons.OK,
-            MessageBoxIcon.Information
+        Registrar(
+            "Administrador de memoria mediante lista ligada abierto."
         );
+
+        using var ventana =
+            new FrmListaLigada();
+
+        ventana.ShowDialog(this);
+
+        Registrar(
+            "Administrador de lista ligada cerrado."
+        );
+
+        Actualizar();
     }
 
     private void AbrirAsociados()
     {
-        MessageBox.Show(
-            this,
-            "El módulo de Asociados será implementado posteriormente.",
-            "AMS.OS - Asociados",
-            MessageBoxButtons.OK,
-            MessageBoxIcon.Information
+        Registrar(
+            "Administrador de memoria mediante Sistema de Asociados abierto."
         );
+
+        using var ventana =
+            new FrmSistemaAsociados();
+
+        ventana.ShowDialog(this);
+
+        Registrar(
+            "Administrador de Sistema de Asociados cerrado."
+        );
+
+        Actualizar();
     }
 
     private void AbrirExploradorArchivos()
