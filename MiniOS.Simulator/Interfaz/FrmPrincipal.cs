@@ -3,6 +3,8 @@ namespace MiniOS.Simulator;
 public sealed class FrmPrincipal : Form
 {
     private readonly Kernel kernel = new();
+    private readonly MonitorDispositivos monitorDispositivos = new();
+    private readonly Label lblDispositivos = Texto("Consultando Windows...", 8.5f);
     private readonly System.Windows.Forms.Timer reloj = new() { Interval = 1000 };
 
     private readonly Label lblHora = Texto("00:00:00", 11, true);
@@ -75,8 +77,11 @@ public sealed class FrmPrincipal : Form
         tvArchivos.Nodes.Add(kernel.Archivos.CrearArbol());
         tvArchivos.BeforeExpand += (_, e) => kernel.Archivos.CargarHijos(e.Node);
 
-        foreach (var d in kernel.Dispositivos)
-            lstDispositivos.Items.Add($"●  {d.Nombre} ({d.Tipo}) - {(d.Disponible ? "OK" : "No disponible")}");
+        lstDispositivos.HorizontalScrollbar = true;
+        lstDispositivos.DoubleClick += (_, _) => AbrirDispositivos();
+        monitorDispositivos.Actualizado += ActualizarDispositivos;
+        monitorDispositivos.Cambio += e => Registrar($"E/S [{e.Hora:HH:mm:ss}] {e.Accion}: {e.Nombre}. {e.Detalle}");
+        Shown += (_, _) => monitorDispositivos.Iniciar();
 
         reloj.Tick += (_, _) =>
         {
@@ -86,6 +91,72 @@ public sealed class FrmPrincipal : Form
 
         Registrar("Simulador preparado. Presione Iniciar SO.");
         Actualizar();
+    }
+
+    private Control PanelDispositivos()
+    {
+        var panel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        lblDispositivos.Dock = DockStyle.Fill;
+        lblDispositivos.AutoSize = false;
+        panel.Controls.Add(lblDispositivos, 0, 0);
+        panel.Controls.Add(lstDispositivos, 0, 1);
+        panel.Controls.Add(BotonSecundario("Ver dispositivos y controladores", AbrirDispositivos), 0, 2);
+        return panel;
+    }
+
+    private void AbrirDispositivos()
+    {
+        using var ventana = new FrmDispositivos(monitorDispositivos, (lstDispositivos.SelectedItem as Dispositivo)?.Id);
+        ventana.ShowDialog(this);
+    }
+
+    private void ActualizarDispositivos()
+    {
+        if (IsDisposed) return;
+        var nuevos = monitorDispositivos.Catalogo.Dispositivos;
+        if (!kernel.Dispositivos.SequenceEqual(nuevos))
+        {
+            string? seleccionado = (lstDispositivos.SelectedItem as Dispositivo)?.Id;
+            int primera = lstDispositivos.TopIndex;
+            kernel.Dispositivos.Clear();
+            kernel.Dispositivos.AddRange(nuevos);
+            lstDispositivos.BeginUpdate();
+            lstDispositivos.Items.Clear();
+            foreach (var d in nuevos.Where(d => !d.EsSoporte))
+            {
+                int indice = lstDispositivos.Items.Add(d);
+                if (d.Id == seleccionado) lstDispositivos.SelectedIndex = indice;
+            }
+            if (lstDispositivos.Items.Count > 0) lstDispositivos.TopIndex = Math.Min(primera, lstDispositivos.Items.Count - 1);
+            lstDispositivos.EndUpdate();
+        }
+        lblDispositivos.Text = monitorDispositivos.Error is not null ? "Error de consulta. Ver detalles."
+            : $"{lstDispositivos.Items.Count} registros · Monitoreo activo";
+        lblDispositivos.ForeColor = monitorDispositivos.Error is null ? TemaMiniOS.VerdeOscuro : Color.DarkRed;
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        const int WM_DEVICECHANGE = 0x0219;
+        const int WM_DISPLAYCHANGE = 0x007E;
+        // Se vuelve a consultar sin bloquear este mensaje de Windows.
+        if ((m.Msg == WM_DEVICECHANGE || m.Msg == WM_DISPLAYCHANGE) && IsHandleCreated)
+            monitorDispositivos.SolicitarActualizacion();
+        base.WndProc(ref m);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            monitorDispositivos.Dispose();
+            reloj.Dispose();
+        }
+        base.Dispose(disposing);
     }
 
     private Control ConstruirInterfaz()
@@ -139,7 +210,7 @@ public sealed class FrmPrincipal : Form
         inferior.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28));
         inferior.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
         inferior.Controls.Add(Tarjeta("SISTEMA DE ARCHIVOS", ConBoton(tvArchivos, "Abrir explorador real", AbrirExploradorArchivos)), 0, 0);
-        inferior.Controls.Add(Tarjeta("DISPOSITIVOS DE E/S", ConBoton(lstDispositivos, "Ver detalles", () => AbrirDetalle("Dispositivos de E/S", kernel.Dispositivos))), 1, 0);
+        inferior.Controls.Add(Tarjeta("DISPOSITIVOS DE E/S", PanelDispositivos()), 1, 0);
         inferior.Controls.Add(Tarjeta("LOG DEL SISTEMA", rtbLog), 2, 0);
         principal.Controls.Add(inferior, 0, 3);
 

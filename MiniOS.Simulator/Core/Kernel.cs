@@ -25,13 +25,7 @@ public sealed class Kernel
 
     public List<Proceso> Procesos { get; } = [];
 
-    public List<Dispositivo> Dispositivos { get; } =
-    [
-        new("Teclado", "Entrada"),
-        new("Ratón", "Entrada"),
-        new("Monitor", "Salida"),
-        new("Disco duro 1", "Almacenamiento")
-    ];
+    public List<Dispositivo> Dispositivos { get; } = [];
 
     // =========================================================
     // CONSTRUCTOR
