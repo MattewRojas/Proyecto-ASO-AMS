@@ -77,10 +77,13 @@ public sealed class FrmPrincipal : Form
         tvArchivos.Nodes.Add(kernel.Archivos.CrearArbol());
         tvArchivos.BeforeExpand += (_, e) => kernel.Archivos.CargarHijos(e.Node);
 
-        lstDispositivos.HorizontalScrollbar = true;
+        lstDispositivos.HorizontalScrollbar = false;
+        lstDispositivos.DrawMode = DrawMode.OwnerDrawFixed;
+        lstDispositivos.ItemHeight = lstDispositivos.Font.Height + 9;
+        lstDispositivos.DrawItem += DibujarDispositivo;
         lstDispositivos.DoubleClick += (_, _) => AbrirDispositivos();
         monitorDispositivos.Actualizado += ActualizarDispositivos;
-        monitorDispositivos.Cambio += e => Registrar($"E/S [{e.Hora:HH:mm:ss}] {e.Accion}: {e.Nombre}. {e.Detalle}");
+        monitorDispositivos.CambioDispositivo += e => Registrar($"E/S [{e.Hora:HH:mm:ss}] {e.Accion}: {e.Nombre}. {e.Detalle}");
         Shown += (_, _) => monitorDispositivos.Iniciar();
 
         reloj.Tick += (_, _) =>
@@ -104,13 +107,13 @@ public sealed class FrmPrincipal : Form
         lblDispositivos.AutoSize = false;
         panel.Controls.Add(lblDispositivos, 0, 0);
         panel.Controls.Add(lstDispositivos, 0, 1);
-        panel.Controls.Add(BotonSecundario("Ver dispositivos y controladores", AbrirDispositivos), 0, 2);
+        panel.Controls.Add(BotonSecundario("Ver detalles", AbrirDispositivos), 0, 2);
         return panel;
     }
 
     private void AbrirDispositivos()
     {
-        using var ventana = new FrmDispositivos(monitorDispositivos, (lstDispositivos.SelectedItem as Dispositivo)?.Id);
+        using var ventana = new FrmDispositivos(monitorDispositivos, (lstDispositivos.SelectedItem as Periferico)?.Id);
         ventana.ShowDialog(this);
     }
 
@@ -120,13 +123,13 @@ public sealed class FrmPrincipal : Form
         var nuevos = monitorDispositivos.Catalogo.Dispositivos;
         if (!kernel.Dispositivos.SequenceEqual(nuevos))
         {
-            string? seleccionado = (lstDispositivos.SelectedItem as Dispositivo)?.Id;
+            string? seleccionado = (lstDispositivos.SelectedItem as Periferico)?.Id;
             int primera = lstDispositivos.TopIndex;
             kernel.Dispositivos.Clear();
             kernel.Dispositivos.AddRange(nuevos);
             lstDispositivos.BeginUpdate();
             lstDispositivos.Items.Clear();
-            foreach (var d in nuevos.Where(d => !d.EsSoporte))
+            foreach (var d in monitorDispositivos.Catalogo.Perifericos)
             {
                 int indice = lstDispositivos.Items.Add(d);
                 if (d.Id == seleccionado) lstDispositivos.SelectedIndex = indice;
@@ -135,8 +138,20 @@ public sealed class FrmPrincipal : Form
             lstDispositivos.EndUpdate();
         }
         lblDispositivos.Text = monitorDispositivos.Error is not null ? "Error de consulta. Ver detalles."
-            : $"{lstDispositivos.Items.Count} registros · Monitoreo activo";
+            : $"{lstDispositivos.Items.Count} dispositivos · En tiempo real";
         lblDispositivos.ForeColor = monitorDispositivos.Error is null ? TemaMiniOS.VerdeOscuro : Color.DarkRed;
+    }
+
+    private void DibujarDispositivo(object? sender, DrawItemEventArgs e)
+    {
+        if (e.Index < 0 || lstDispositivos.Items[e.Index] is not Periferico p) return;
+        e.DrawBackground();
+        var texto = new Rectangle(e.Bounds.X + 16, e.Bounds.Y, e.Bounds.Width - 20, e.Bounds.Height);
+        using var indicador = new SolidBrush(p.Estado == "Requiere atención" ? Color.DarkOrange : TemaMiniOS.Verde);
+        e.Graphics.FillEllipse(indicador, e.Bounds.X + 3, e.Bounds.Y + (e.Bounds.Height - 6) / 2, 6, 6);
+        TextRenderer.DrawText(e.Graphics, p.Nombre, e.Font, texto, e.ForeColor,
+            TextFormatFlags.EndEllipsis | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
+        e.DrawFocusRectangle();
     }
 
     protected override void WndProc(ref Message m)

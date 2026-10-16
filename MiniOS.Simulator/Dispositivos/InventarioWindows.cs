@@ -106,6 +106,9 @@ public static class InventarioWindows
                         DescripcionDriver = Texto(conjunto, ref info, PropDriver, 4),
                         ArchivoInf = Texto(conjunto, ref info, PropDriver, 5),
                         FechaDriver = Fecha(conjunto, ref info), Estado = estadoTexto,
+                        ContenedorId = Contenedor(conjunto, ref info),
+                        EsContenedorEquipo = Booleano(conjunto, ref info, "8c7ed206-3f8a-4827-b3ab-ae9e1faefc6c", 4),
+                        NombreBus = Texto(conjunto, ref info, "540b947e-8b40-45bc-a8a2-6a0b894cbda2", 4),
                         EsSoporte = clase.Equals("USB", StringComparison.OrdinalIgnoreCase)
                             || clase.Equals("Volume", StringComparison.OrdinalIgnoreCase)
                             || clase.Equals("HIDClass", StringComparison.OrdinalIgnoreCase)
@@ -144,7 +147,12 @@ public static class InventarioWindows
                 string conexion = esBluetooth ? "Bluetooth"
                     : ancestros.Any(x => x.StartsWith("USB\\", StringComparison.OrdinalIgnoreCase)) ? "USB"
                     : string.IsNullOrEmpty(nodo.Enumerador) ? "No informada" : nodo.Enumerador;
-                d = d with { Conexion = conexion };
+                // El nodo USB base reúne las funciones de un periférico compuesto.
+                string origen = ancestros.FirstOrDefault(x => x.StartsWith("USB\\VID_", StringComparison.OrdinalIgnoreCase)
+                    && !x.Contains("&MI_", StringComparison.OrdinalIgnoreCase)) ?? "";
+                bool software = (id.StartsWith("ROOT\\", StringComparison.OrdinalIgnoreCase)
+                    || id.StartsWith("SWD\\", StringComparison.OrdinalIgnoreCase)) && origen.Length == 0 && !esBluetooth;
+                d = d with { Conexion = conexion, OrigenFisico = origen, EsVirtual = software };
                 if (esBluetooth)
                 {
                     // Windows puede conservar nodos emparejados aunque estén desconectados.
@@ -207,6 +215,18 @@ public static class InventarioWindows
         if (datos is null || datos.Length < 8 || tipo != 0x10) return "";
         try { return DateTime.FromFileTimeUtc(BitConverter.ToInt64(datos)).ToString("yyyy-MM-dd"); }
         catch (ArgumentOutOfRangeException) { return ""; }
+    }
+    private static string Contenedor(IntPtr conjunto, ref InfoDispositivo info)
+    {
+        var datos = Propiedad(conjunto, ref info, "8c7ed206-3f8a-4827-b3ab-ae9e1faefc6c", 2, out uint tipo);
+        if (datos is null || datos.Length != 16 || tipo != 0x0D) return "";
+        var id = new Guid(datos);
+        return id == Guid.Empty ? "" : id.ToString();
+    }
+    private static bool Booleano(IntPtr conjunto, ref InfoDispositivo info, string grupo, uint pid)
+    {
+        var datos = Propiedad(conjunto, ref info, grupo, pid, out uint tipo);
+        return datos is { Length: > 0 } && tipo == 0x11 && datos[0] != 0;
     }
     private static Dictionary<string, bool> ConsultarBluetooth()
     {

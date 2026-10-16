@@ -5,7 +5,11 @@ public sealed class CatalogoDispositivos
 {
     public IReadOnlyList<Dispositivo> Dispositivos { get; private set; } = Array.Empty<Dispositivo>();
     public IReadOnlyList<EventoDispositivo> Historial => historial.AsReadOnly();
+    public IReadOnlyList<Periferico> Perifericos { get; private set; } = Array.Empty<Periferico>();
+    public IReadOnlyList<EventoDispositivo> HistorialDispositivos => historialDispositivos.AsReadOnly();
+    public IReadOnlyList<EventoDispositivo> UltimosCambiosDispositivos { get; private set; } = Array.Empty<EventoDispositivo>();
     private readonly List<EventoDispositivo> historial = [];
+    private readonly List<EventoDispositivo> historialDispositivos = [];
     private bool inicializado;
 
     public IReadOnlyList<EventoDispositivo> Aplicar(IReadOnlyList<Dispositivo> nuevos)
@@ -31,6 +35,23 @@ public sealed class CatalogoDispositivos
                     eventos.Add(new(hora, "Controlador", d.Nombre, $"{d.ProveedorDriver} · {d.VersionDriver}"));
             }
         }
+        var resumen = PresentacionDispositivos.Agrupar(nuevos);
+        var cambiosResumen = new List<EventoDispositivo>();
+        if (!inicializado) cambiosResumen.Add(new(hora, "Inicio", "Equipo", $"{resumen.Count} dispositivos en la vista resumida."));
+        else
+        {
+            var antes = Perifericos.ToDictionary(p => p.Id, StringComparer.OrdinalIgnoreCase);
+            var despues = resumen.ToDictionary(p => p.Id, StringComparer.OrdinalIgnoreCase);
+            foreach (var p in Perifericos.Where(p => !despues.ContainsKey(p.Id)))
+                cambiosResumen.Add(new(hora, "Desconectado", p.Nombre, p.Conexion));
+            foreach (var p in resumen)
+                if (!antes.TryGetValue(p.Id, out var previo)) cambiosResumen.Add(new(hora, "Conectado", p.Nombre, p.Conexion));
+                else if (previo.Estado != p.Estado) cambiosResumen.Add(new(hora, "Estado", p.Nombre, p.Estado));
+        }
+        Perifericos = resumen;
+        UltimosCambiosDispositivos = cambiosResumen;
+        historialDispositivos.AddRange(cambiosResumen);
+        if (historialDispositivos.Count > 200) historialDispositivos.RemoveRange(0, historialDispositivos.Count - 200);
         inicializado = true;
         Dispositivos = nuevos.ToArray();
         historial.AddRange(eventos);
@@ -53,6 +74,7 @@ public sealed class MonitorDispositivos : IDisposable
     public bool Consultando => consultando;
     public event Action? Actualizado;
     public event Action<EventoDispositivo>? Cambio;
+    public event Action<EventoDispositivo>? CambioDispositivo;
 
     public MonitorDispositivos(Func<CancellationToken, IReadOnlyList<Dispositivo>>? consultar = null)
     {
@@ -88,6 +110,7 @@ public sealed class MonitorDispositivos : IDisposable
                     Error = null;
                     UltimaConsulta = DateTime.Now;
                     foreach (var cambio in Catalogo.Aplicar(dispositivos)) Cambio?.Invoke(cambio);
+                    foreach (var cambio in Catalogo.UltimosCambiosDispositivos) CambioDispositivo?.Invoke(cambio);
                 }
                 catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
                 catch (Exception ex)
@@ -111,5 +134,6 @@ public sealed class MonitorDispositivos : IDisposable
         cancelacion.Dispose();
         Actualizado = null;
         Cambio = null;
+        CambioDispositivo = null;
     }
 }

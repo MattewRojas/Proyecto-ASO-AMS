@@ -18,6 +18,11 @@ public sealed record Dispositivo
     public string FechaDriver { get; init; } = "";
     public string ArchivoInf { get; init; } = "";
     public string DescripcionDriver { get; init; } = "";
+    public string ContenedorId { get; init; } = "";
+    public bool EsContenedorEquipo { get; init; }
+    public string OrigenFisico { get; init; } = "";
+    public string NombreBus { get; init; } = "";
+    public bool EsVirtual { get; init; }
     public bool EsSoporte { get; init; }
     public override string ToString() => $"{Nombre} · {Tipo} · {Estado}";
 }
