@@ -324,18 +324,22 @@ public sealed class FrmPrincipal : Form
         var barraPestanas = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 2,
+            ColumnCount = 3,
             RowCount = 1,
             BackColor = TemaMiniOS.Blanco,
             Margin = new Padding(0)
         };
 
         barraPestanas.ColumnStyles.Add(
-            new ColumnStyle(SizeType.Percent, 50)
+            new ColumnStyle(SizeType.Percent, 33.33f)
         );
 
         barraPestanas.ColumnStyles.Add(
-            new ColumnStyle(SizeType.Percent, 50)
+            new ColumnStyle(SizeType.Percent, 33.33f)
+        );
+
+        barraPestanas.ColumnStyles.Add(
+            new ColumnStyle(SizeType.Percent, 33.34f)
         );
 
         // =========================================================
@@ -410,30 +414,44 @@ public sealed class FrmPrincipal : Form
             TemaMiniOS.VerdeAzulado;
 
         // =========================================================
+        // PESTAÑA ASIGNACIÓN
+        // =========================================================
+
+        var btnAsignacion = new Button
+        {
+            Text = "Asignación",
+            Dock = DockStyle.Fill,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = TemaMiniOS.Fondo,
+            ForeColor = TemaMiniOS.VerdeOscuro,
+            Font = new Font("Segoe UI", 9.2f, FontStyle.Bold),
+            Cursor = Cursors.Hand,
+            Margin = new Padding(2, 0, 0, 0),
+            UseVisualStyleBackColor = false
+        };
+
+        btnAsignacion.FlatAppearance.BorderSize = 1;
+        btnAsignacion.FlatAppearance.BorderColor =
+            TemaMiniOS.VerdeAzulado;
+
+        // =========================================================
         // FUNCIÓN VISUAL PARA MARCAR LA PESTAÑA ACTIVA
         // =========================================================
 
         void SeleccionarPestana(Button seleccionada)
         {
-            // Restablecemos ambas pestañas.
-            btnMultiprogramacion.BackColor =
-                TemaMiniOS.Fondo;
+            // Restablecer colores de las tres pestañas.
+            btnMultiprogramacion.BackColor = TemaMiniOS.Fondo;
+            btnMemoriaVirtual.BackColor = TemaMiniOS.Fondo;
+            btnAsignacion.BackColor = TemaMiniOS.Fondo;
 
-            btnMemoriaVirtual.BackColor =
-                TemaMiniOS.Fondo;
+            btnMultiprogramacion.ForeColor = TemaMiniOS.VerdeOscuro;
+            btnMemoriaVirtual.ForeColor = TemaMiniOS.VerdeOscuro;
+            btnAsignacion.ForeColor = TemaMiniOS.VerdeOscuro;
 
-            btnMultiprogramacion.ForeColor =
-                TemaMiniOS.VerdeOscuro;
-
-            btnMemoriaVirtual.ForeColor =
-                TemaMiniOS.VerdeOscuro;
-
-            // Resaltamos la seleccionada.
-            seleccionada.BackColor =
-                TemaMiniOS.VerdeClaro;
-
-            seleccionada.ForeColor =
-                TemaMiniOS.VerdeOscuro;
+            // Resaltar la pestaña seleccionada.
+            seleccionada.BackColor = TemaMiniOS.VerdeClaro;
+            seleccionada.ForeColor = TemaMiniOS.VerdeOscuro;
         }
 
         // =========================================================
@@ -551,8 +569,11 @@ public sealed class FrmPrincipal : Form
             contenido.Controls.Clear();
             var opciones = new TableLayoutPanel
             {
-                Dock = DockStyle.Top, ColumnCount = 1, RowCount = 5,
-                Height = 210, BackColor = TemaMiniOS.Blanco
+                Dock = DockStyle.Top,
+                ColumnCount = 1,
+                RowCount = 5,
+                Height = 210,
+                BackColor = TemaMiniOS.Blanco
             };
             opciones.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             opciones.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
@@ -574,6 +595,52 @@ public sealed class FrmPrincipal : Form
         };
 
         // =========================================================
+        // CUANDO SE TOCA ASIGNACIÓN: ALGORITMO 3 - I-NODOS
+        // =========================================================
+
+        btnAsignacion.Click += (_, _) =>
+        {
+            SeleccionarPestana(btnAsignacion);
+            contenido.Controls.Clear();
+
+            // El panel de Memoria es pequeño: las operaciones se realizan
+            // en una ventana independiente con el mapa de los 20 bloques.
+            var opciones = new TableLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                ColumnCount = 1,
+                RowCount = 3,
+                Height = 150,
+                Padding = new Padding(5),
+                BackColor = TemaMiniOS.Blanco
+            };
+
+            opciones.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+            opciones.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));
+            opciones.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+
+            var titulo = Texto("Algoritmo 3: Asignación mediante i-nodos", 10, true);
+            titulo.Dock = DockStyle.Fill;
+            opciones.Controls.Add(titulo, 0, 0);
+
+            var descripcion = Texto(
+                "Crear, consultar y eliminar archivos; mostrar el disco virtual " +
+                "y calcular los bloques disponibles.", 8.5f);
+            descripcion.AutoSize = false;
+            descripcion.Dock = DockStyle.Fill;
+            opciones.Controls.Add(descripcion, 0, 1);
+
+            opciones.Controls.Add(
+                BotonSecundario("Abrir simulador de i-nodos", AbrirAsignacionINodos),
+                0, 2);
+
+            contenido.Controls.Add(opciones);
+
+            // Abre directamente al seleccionar la pestaña.
+            AbrirAsignacionINodos();
+        };
+
+        // =========================================================
         // AGREGAR CONTROLES
         // =========================================================
 
@@ -586,6 +653,12 @@ public sealed class FrmPrincipal : Form
         barraPestanas.Controls.Add(
             btnMemoriaVirtual,
             1,
+            0
+        );
+
+        barraPestanas.Controls.Add(
+            btnAsignacion,
+            2,
             0
         );
 
@@ -744,6 +817,16 @@ public sealed class FrmPrincipal : Form
         );
 
         Actualizar();
+    }
+
+    private void AbrirAsignacionINodos()
+    {
+        Registrar("Simulador de asignación mediante i-nodos abierto.");
+
+        using var ventana = new FrmAsignacionINodos();
+        ventana.ShowDialog(this);
+
+        Registrar("Simulador de asignación mediante i-nodos cerrado.");
     }
 
     private void AbrirExploradorArchivos()
