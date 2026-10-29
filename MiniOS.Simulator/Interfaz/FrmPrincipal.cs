@@ -224,7 +224,7 @@ public sealed class FrmPrincipal : Form
         inferior.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 32));
         inferior.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28));
         inferior.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
-        inferior.Controls.Add(Tarjeta("SISTEMA DE ARCHIVOS", ConBoton(tvArchivos, "Abrir explorador real", AbrirExploradorArchivos)), 0, 0);
+        inferior.Controls.Add(Tarjeta("SISTEMA DE ARCHIVOS", PanelSistemaArchivos()), 0, 0);
         inferior.Controls.Add(Tarjeta("DISPOSITIVOS DE E/S", PanelDispositivos()), 1, 0);
         inferior.Controls.Add(Tarjeta("LOG DEL SISTEMA", rtbLog), 2, 0);
         principal.Controls.Add(inferior, 0, 3);
@@ -324,22 +324,18 @@ public sealed class FrmPrincipal : Form
         var barraPestanas = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 3,
+            ColumnCount = 2,
             RowCount = 1,
             BackColor = TemaMiniOS.Blanco,
             Margin = new Padding(0)
         };
 
         barraPestanas.ColumnStyles.Add(
-            new ColumnStyle(SizeType.Percent, 33.33f)
+            new ColumnStyle(SizeType.Percent, 50f)
         );
 
         barraPestanas.ColumnStyles.Add(
-            new ColumnStyle(SizeType.Percent, 33.33f)
-        );
-
-        barraPestanas.ColumnStyles.Add(
-            new ColumnStyle(SizeType.Percent, 33.34f)
+            new ColumnStyle(SizeType.Percent, 50f)
         );
 
         // =========================================================
@@ -414,40 +410,17 @@ public sealed class FrmPrincipal : Form
             TemaMiniOS.VerdeAzulado;
 
         // =========================================================
-        // PESTAÑA ASIGNACIÓN
-        // =========================================================
-
-        var btnAsignacion = new Button
-        {
-            Text = "Asignación",
-            Dock = DockStyle.Fill,
-            FlatStyle = FlatStyle.Flat,
-            BackColor = TemaMiniOS.Fondo,
-            ForeColor = TemaMiniOS.VerdeOscuro,
-            Font = new Font("Segoe UI", 9.2f, FontStyle.Bold),
-            Cursor = Cursors.Hand,
-            Margin = new Padding(2, 0, 0, 0),
-            UseVisualStyleBackColor = false
-        };
-
-        btnAsignacion.FlatAppearance.BorderSize = 1;
-        btnAsignacion.FlatAppearance.BorderColor =
-            TemaMiniOS.VerdeAzulado;
-
-        // =========================================================
         // FUNCIÓN VISUAL PARA MARCAR LA PESTAÑA ACTIVA
         // =========================================================
 
         void SeleccionarPestana(Button seleccionada)
         {
-            // Restablecer colores de las tres pestañas.
+            // Restablecer colores de las dos pestañas.
             btnMultiprogramacion.BackColor = TemaMiniOS.Fondo;
             btnMemoriaVirtual.BackColor = TemaMiniOS.Fondo;
-            btnAsignacion.BackColor = TemaMiniOS.Fondo;
 
             btnMultiprogramacion.ForeColor = TemaMiniOS.VerdeOscuro;
             btnMemoriaVirtual.ForeColor = TemaMiniOS.VerdeOscuro;
-            btnAsignacion.ForeColor = TemaMiniOS.VerdeOscuro;
 
             // Resaltar la pestaña seleccionada.
             seleccionada.BackColor = TemaMiniOS.VerdeClaro;
@@ -595,52 +568,6 @@ public sealed class FrmPrincipal : Form
         };
 
         // =========================================================
-        // CUANDO SE TOCA ASIGNACIÓN: ALGORITMO 3 - I-NODOS
-        // =========================================================
-
-        btnAsignacion.Click += (_, _) =>
-        {
-            SeleccionarPestana(btnAsignacion);
-            contenido.Controls.Clear();
-
-            // El panel de Memoria es pequeño: las operaciones se realizan
-            // en una ventana independiente con el mapa de los 20 bloques.
-            var opciones = new TableLayoutPanel
-            {
-                Dock = DockStyle.Top,
-                ColumnCount = 1,
-                RowCount = 3,
-                Height = 150,
-                Padding = new Padding(5),
-                BackColor = TemaMiniOS.Blanco
-            };
-
-            opciones.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
-            opciones.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));
-            opciones.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
-
-            var titulo = Texto("Algoritmo 3: Asignación mediante i-nodos", 10, true);
-            titulo.Dock = DockStyle.Fill;
-            opciones.Controls.Add(titulo, 0, 0);
-
-            var descripcion = Texto(
-                "Crear, consultar y eliminar archivos; mostrar el disco virtual " +
-                "y calcular los bloques disponibles.", 8.5f);
-            descripcion.AutoSize = false;
-            descripcion.Dock = DockStyle.Fill;
-            opciones.Controls.Add(descripcion, 0, 1);
-
-            opciones.Controls.Add(
-                BotonSecundario("Abrir simulador de i-nodos", AbrirAsignacionINodos),
-                0, 2);
-
-            contenido.Controls.Add(opciones);
-
-            // Abre directamente al seleccionar la pestaña.
-            AbrirAsignacionINodos();
-        };
-
-        // =========================================================
         // AGREGAR CONTROLES
         // =========================================================
 
@@ -653,12 +580,6 @@ public sealed class FrmPrincipal : Form
         barraPestanas.Controls.Add(
             btnMemoriaVirtual,
             1,
-            0
-        );
-
-        barraPestanas.Controls.Add(
-            btnAsignacion,
-            2,
             0
         );
 
@@ -817,6 +738,48 @@ public sealed class FrmPrincipal : Form
         );
 
         Actualizar();
+    }
+
+    private Control PanelSistemaArchivos()
+    {
+        var panel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
+        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+        panel.Controls.Add(tvArchivos, 0, 0);
+        panel.Controls.Add(BotonSecundario("Asignación de archivos", AbrirAsignacionArchivos), 0, 1);
+        panel.Controls.Add(BotonSecundario("Abrir explorador real", AbrirExploradorArchivos), 0, 2);
+        return panel;
+    }
+
+    private void AbrirAsignacionArchivos()
+    {
+        using var menu = new Form
+        {
+            Text = "AMS.OS - Asignación de archivos",
+            StartPosition = FormStartPosition.CenterParent,
+            ClientSize = new Size(620, 300), MinimumSize = new Size(620, 340),
+            BackColor = TemaMiniOS.Fondo
+        };
+        var opciones = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill, Padding = new Padding(18), ColumnCount = 1, RowCount = 5
+        };
+        for (int i = 0; i < 5; i++) opciones.RowStyles.Add(new RowStyle(SizeType.Percent, 20));
+        opciones.Controls.Add(Texto("Discos virtuales independientes de 20 bloques", 12, true), 0, 0);
+        void Abrir(MetodoAsignacion metodo)
+        {
+            Registrar($"Simulador de asignación {metodo} abierto.");
+            using var ventana = new FrmAsignacionArchivos(metodo);
+            ventana.ShowDialog(menu);
+            Registrar($"Simulador de asignación {metodo} cerrado.");
+        }
+        opciones.Controls.Add(BotonSecundario("1. Asignación contigua / adyacente", () => Abrir(MetodoAsignacion.Contigua)), 0, 1);
+        opciones.Controls.Add(BotonSecundario("2. Asignación por listas ligadas", () => Abrir(MetodoAsignacion.Ligada)), 0, 2);
+        opciones.Controls.Add(BotonSecundario("3. Asignación por i-nodos", AbrirAsignacionINodos), 0, 3);
+        opciones.Controls.Add(BotonSecundario("Regresar", () => menu.Close()), 0, 4);
+        menu.Controls.Add(opciones);
+        menu.ShowDialog(this);
     }
 
     private void AbrirAsignacionINodos()
