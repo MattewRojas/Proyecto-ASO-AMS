@@ -28,7 +28,7 @@ Crear reserva el primer tramo consecutivo suficiente. El directorio conserva ini
 Consultar muestra el rango; un bloque lógico k se localiza como inicio + k.
 Eliminar libera todo el rango.
 
-Pulse Ejemplo con huecos. Quedan A, C y E con cuatro bloques cada uno, y ocho bloques libres repartidos en dos huecos de cuatro. El campo propone F.txt de seis bloques. Al intentar crearlo se informa fragmentación externa: el espacio total alcanza, pero ningún hueco es suficientemente grande. Pulse Compactar y vuelva a crear F.txt: ocupará 12 a 17.
+Pulse Cargar ejemplo. Quedan A, C y E con cuatro bloques cada uno, y ocho bloques libres repartidos en dos huecos de cuatro. El campo propone F.txt de seis bloques. Al intentar crearlo se informa fragmentación externa: el espacio total alcanza, pero ningún hueco es suficientemente grande. Pulse Compactar y vuelva a crear F.txt: ocupará 12 a 17.
 
 Compactar mueve los archivos simulados y actualiza sus inicios, reuniendo el espacio libre al final. No aumenta la cantidad total de bloques libres. Es una operación adicional y explícita, no una condición automática de la asignación contigua.
 
@@ -36,7 +36,7 @@ Compactar mueve los archivos simulados y actualiza sus inicios, reuniendo el esp
 
 Crear toma bloques libres y escribe en cada uno el enlace al siguiente. El directorio conserva el inicio y el tamaño. Consultar recorre los enlaces; FIN representa un puntero nulo. Eliminar primero recorre la cadena y después libera propietarios y enlaces.
 
-Pulse Ejemplo con huecos y cree F.txt de seis bloques. La cadena será 4 → 5 → 6 → 7 → 12 → 13 → FIN. Consulte y elimine F.txt para mostrar la recuperación de los ocho bloques libres.
+Pulse Cargar ejemplo y cree F.txt de seis bloques. La cadena será 4 → 5 → 6 → 7 → 12 → 13 → FIN. Consulte y elimine F.txt para mostrar la recuperación de los ocho bloques libres.
 
 Esta lista ligada corresponde a almacenamiento de archivos en disco. Es distinta de las listas de huecos de memoria usadas para First Fit, Next Fit, Best Fit y Worst Fit, que permanecen en Memoria.
 
@@ -64,3 +64,15 @@ dotnet run --project PruebasAsignacion/PruebasAsignacion.csproj
 ```
 
 Los archivos de esta actualización incluyen el código, las pruebas del modelo y esta guía de demostración.
+
+## Diseño común y diferencia de código
+
+Los tres simuladores usan la distribución del formulario de i-nodos: panel izquierdo con entrada, operaciones, directorio y detalle; panel derecho con mapa de 20 bloques en dos filas, herramientas e historial. La contigua conserva Compactar disco.
+
+| Método | Estructura persistente | Consulta |
+| --- | --- | --- |
+| Contigua | Entrada.Inicio y Entrada.Cantidad | Calcula inicio + desplazamiento. |
+| Ligada | Entrada con inicio/tamaño y BloqueLigado.Siguiente por bloque | Recorrer sigue Siguiente hasta null (FIN). |
+| I-nodos | INodo.Id, metadatos e INodo.Bloques | Consulta las referencias del i-nodo; Bloques[k] identifica el bloque lógico k. |
+
+En DiscoAsignacion.cs, BloqueLigado hace explícito que el enlace pertenece al bloque. La lista local de Recorrer es temporal, sirve para mostrar y validar el recorrido, y no se almacena como índice del archivo. En FrmAsignacionINodos.cs, INodo.Bloques sí es una lista persistente de referencias y los bloques de datos no guardan Siguiente. El diseño visual compartido no cambia estas estructuras.

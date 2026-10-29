@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -53,11 +53,13 @@ public sealed class FrmAsignacionINodos : Form
     private bool actualizandoTabla;
     private string? seleccionado;
 
+    // I-NODOS: referencias centralizadas en el i-nodo; los bloques no enlazan al siguiente.
     private sealed class INodo
     {
         public int Id { get; init; }
         public string Nombre { get; init; } = "";
         public DateTime CreadoEl { get; init; } = DateTime.Now;
+        // El bloque lógico k se localiza con Bloques[k], sin recorrer una cadena.
         public List<int> Bloques { get; init; } = new();
         public int TamanoBloques => Bloques.Count;
     }
@@ -330,7 +332,8 @@ public sealed class FrmAsignacionINodos : Form
             $"Tamaño: {archivo.TamanoBloques} bloques\r\n" +
             $"Creado: {archivo.CreadoEl:dd/MM/yyyy HH:mm:ss}\r\n" +
             $"Referencias: [{string.Join(", ", archivo.Bloques)}]\r\n" +
-            "Los bloques no necesitan estar consecutivos.";
+            "Referencias guardadas en el i-nodo; los bloques no contienen Siguiente.\r\n" +
+            "Acceso al bloque lógico k: archivo.Bloques[k].";
         ActualizarMapa();
     }
 

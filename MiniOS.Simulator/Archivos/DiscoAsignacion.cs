@@ -6,6 +6,7 @@ public enum MetodoAsignacion { Contigua, Ligada }
 // No accede al sistema de archivos del equipo.
 public sealed class DiscoAsignacion
 {
+    // Directorio: inicio y longitud, SIN lista de referencias ni identificador de i-nodo.
     public sealed class Entrada
     {
         public string Nombre { get; init; } = "";
@@ -14,14 +15,20 @@ public sealed class DiscoAsignacion
     }
 
     private readonly string?[] propietarios = new string?[20];
-    private readonly int?[] siguientes = new int?[20];
+    // A diferencia de INodo.Bloques, el enlace pertenece a CADA bloque del disco.
+    private sealed class BloqueLigado
+    {
+        public int? Siguiente { get; set; } // null = FIN
+    }
+    private readonly BloqueLigado[] bloquesLigados =
+        Enumerable.Range(0, 20).Select(_ => new BloqueLigado()).ToArray();
     private readonly Dictionary<string, Entrada> archivos = new(StringComparer.OrdinalIgnoreCase);
     public MetodoAsignacion Metodo { get; }
     public int Total => propietarios.Length;
     public int Libres => propietarios.Count(p => p == null);
     public IEnumerable<Entrada> Archivos => archivos.Values.OrderBy(a => a.Inicio);
     public string? Propietario(int bloque) => propietarios[bloque];
-    public int? Siguiente(int bloque) => siguientes[bloque];
+    public int? Siguiente(int bloque) => bloquesLigados[bloque].Siguiente;
     public int MayorHueco
     {
         get
@@ -71,7 +78,7 @@ public sealed class DiscoAsignacion
         for (int i = 0; i < bloques.Length; i++)
         {
             propietarios[bloques[i]] = nombre;
-            siguientes[bloques[i]] = Metodo == MetodoAsignacion.Ligada && i + 1 < bloques.Length ? bloques[i + 1] : null;
+            bloquesLigados[bloques[i]].Siguiente = Metodo == MetodoAsignacion.Ligada && i + 1 < bloques.Length ? bloques[i + 1] : null;
         }
         return archivo;
     }
@@ -80,6 +87,7 @@ public sealed class DiscoAsignacion
     {
         if (Metodo == MetodoAsignacion.Contigua)
             return Enumerable.Range(archivo.Inicio, archivo.Cantidad).ToArray();
+        // Lista temporal para mostrar/validar el recorrido; NO se almacena en el directorio.
         var ruta = new List<int>();
         int? actual = archivo.Inicio;
         while (actual.HasValue)
@@ -89,7 +97,7 @@ public sealed class DiscoAsignacion
                 !string.Equals(propietarios[bloque], archivo.Nombre, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("Cadena de bloques inválida.");
             ruta.Add(bloque);
-            actual = siguientes[bloque];
+            actual = bloquesLigados[bloque].Siguiente;
         }
         if (ruta.Count != archivo.Cantidad) throw new InvalidOperationException("Cadena incompleta.");
         return ruta;
@@ -99,7 +107,7 @@ public sealed class DiscoAsignacion
     {
         var archivo = Consultar(nombre);
         var bloques = Recorrer(archivo); // Leer la cadena antes de borrar sus enlaces.
-        foreach (int bloque in bloques) { propietarios[bloque] = null; siguientes[bloque] = null; }
+        foreach (int bloque in bloques) { propietarios[bloque] = null; bloquesLigados[bloque].Siguiente = null; }
         archivos.Remove(archivo.Nombre);
     }
 
@@ -116,5 +124,5 @@ public sealed class DiscoAsignacion
         }
     }
 
-    public void Reiniciar() { archivos.Clear(); Array.Clear(propietarios); Array.Clear(siguientes); }
+    public void Reiniciar() { archivos.Clear(); Array.Clear(propietarios); foreach (var bloque in bloquesLigados) bloque.Siguiente = null; }
 }

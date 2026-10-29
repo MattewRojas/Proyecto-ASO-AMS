@@ -8,8 +8,7 @@ public sealed class FrmAsignacionArchivos : Form
     private readonly DiscoAsignacion disco;
     private readonly TextBox nombre = new() { Dock = DockStyle.Fill };
     private readonly NumericUpDown cantidad = new() { Minimum = 1, Maximum = 20, Value = 4, Dock = DockStyle.Fill };
-    private readonly DataGridView tabla = new();
-    private readonly DataGridView mapa = new();
+    private readonly DataGridView tabla = new() { Dock = DockStyle.Fill };
     private readonly TextBox detalle = new() { Multiline = true, ReadOnly = true, Dock = DockStyle.Fill, ScrollBars = ScrollBars.Both };
     private readonly ListBox historial = new() { Dock = DockStyle.Fill, HorizontalScrollbar = true };
     private readonly Label resumen = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft };
@@ -21,79 +20,195 @@ public sealed class FrmAsignacionArchivos : Form
         disco = new DiscoAsignacion(metodo);
         Text = "AMS.OS - Asignación " + (Ligada ? "por listas ligadas" : "contigua / adyacente");
         StartPosition = FormStartPosition.CenterParent;
-        ClientSize = new Size(1180, 780);
-        MinimumSize = new Size(1000, 700);
-        Font = new Font("Segoe UI", 10);
+        ClientSize = new Size(1250, 790);
+        MinimumSize = new Size(1080, 720);
+        Font = new Font("Segoe UI", 9.5f);
+        detalle.Font = new Font("Consolas", 10);
+        resumen.Font = new Font("Segoe UI", 11, FontStyle.Bold);
         BackColor = Color.FromArgb(241, 243, 240);
-        var panel = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(16), ColumnCount = 1, RowCount = 6 };
-        foreach (int alto in new[] { 70, 48, 58 }) panel.RowStyles.Add(new RowStyle(SizeType.Absolute, alto));
-        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 70));
-        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 30));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
-        Controls.Add(panel);
-        panel.Controls.Add(new Label
+        ConstruirInterfaz();
+        Actualizar();
+        Registrar("Disco virtual preparado: 20 bloques libres.");
+    }
+
+    private const int TotalBloques = 20;
+    private readonly Color verde = Color.FromArgb(55, 75, 54);
+    private readonly Color verdeClaro = Color.FromArgb(187, 205, 182);
+    private readonly Color fondo = Color.FromArgb(241, 243, 240);
+    private readonly Label[] bloquesVisuales = new Label[TotalBloques];
+    private readonly Label lblEstado = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true };
+    private string? seleccionado;
+    private static Label Etiqueta(string texto) => new() { Text = texto, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft };
+
+    private void ConstruirInterfaz()
+    {
+        var principal = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
-            Text = Ligada ? "ALGORITMO 2 · LISTAS LIGADAS\nCada bloque apunta al siguiente; FIN indica el último bloque."
-                : "ALGORITMO 1 · CONTIGUA / ADYACENTE\nEl directorio guarda el bloque inicial y la longitud del archivo.",
-            Font = new Font("Segoe UI", 12, FontStyle.Bold)
+            Dock = DockStyle.Fill,
+            Padding = new Padding(16),
+            RowCount = 4,
+            ColumnCount = 1
+        };
+        principal.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));
+        principal.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
+        principal.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        principal.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
+        Controls.Add(principal);
+
+        principal.Controls.Add(new Label
+        {
+            Text = Ligada ? "ASIGNACIÓN POR LISTAS LIGADAS · ALGORITMO 2" : "ASIGNACIÓN CONTIGUA / ADYACENTE · ALGORITMO 1",
+            Dock = DockStyle.Fill,
+            ForeColor = verde,
+            Font = new Font("Segoe UI", 17, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleLeft
         }, 0, 0);
+        principal.Controls.Add(resumen, 0, 1);
+
+        // Barra inferior: estado y botón para regresar a AMS.OS.
+        var barraInferior = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            Margin = new Padding(0, 3, 0, 0)
+        };
+        barraInferior.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        barraInferior.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190));
+        barraInferior.Controls.Add(lblEstado, 0, 0);
+        barraInferior.Controls.Add(Boton("← Regresar", () => Close()), 1, 0);
+        principal.Controls.Add(barraInferior, 0, 3);
+
+        var centro = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
+        centro.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
+        centro.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
+        principal.Controls.Add(centro, 0, 2);
+
+        var izquierda = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Color.White,
+            Padding = new Padding(12),
+            ColumnCount = 1,
+            RowCount = 5,
+            Margin = new Padding(0, 0, 7, 0)
+        };
+        izquierda.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+        izquierda.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));
+        izquierda.RowStyles.Add(new RowStyle(SizeType.Absolute, 55));
+        izquierda.RowStyles.Add(new RowStyle(SizeType.Percent, 65));
+        izquierda.RowStyles.Add(new RowStyle(SizeType.Percent, 35));
+        centro.Controls.Add(izquierda, 0, 0);
+        izquierda.Controls.Add(Etiqueta("CREAR, CONSULTAR Y ELIMINAR ARCHIVOS"), 0, 0);
+
         var campos = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4 };
-        campos.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90));
-        campos.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        campos.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90));
-        campos.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
-        campos.Controls.Add(new Label { Text = "Archivo:", Dock = DockStyle.Fill }, 0, 0);
+        campos.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 17));
+        campos.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 43));
+        campos.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 17));
+        campos.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 23));
+        campos.Controls.Add(Etiqueta("Nombre:"), 0, 0);
         campos.Controls.Add(nombre, 1, 0);
-        campos.Controls.Add(new Label { Text = "Bloques:", Dock = DockStyle.Fill }, 2, 0);
+        campos.Controls.Add(Etiqueta("Bloques:"), 2, 0);
         campos.Controls.Add(cantidad, 3, 0);
-        panel.Controls.Add(campos, 0, 1);
-        var botones = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = Ligada ? 5 : 6 };
-        for (int i = 0; i < botones.ColumnCount; i++) botones.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / botones.ColumnCount));
-        botones.Controls.Add(Boton("Crear", Crear), 0, 0);
-        botones.Controls.Add(Boton("Consultar", Consultar), 1, 0);
-        botones.Controls.Add(Boton("Eliminar", Eliminar), 2, 0);
-        botones.Controls.Add(Boton("Ejemplo con huecos", Ejemplo), 3, 0);
-        botones.Controls.Add(Boton("Reiniciar", Reiniciar), 4, 0);
-        if (!Ligada) botones.Controls.Add(Boton("Compactar", Compactar), 5, 0);
-        panel.Controls.Add(botones, 0, 2);
-        var tablas = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
-        tablas.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
-        tablas.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
-        ConfigurarTabla(tabla, new[] { "Archivo", "Inicio", "Bloques", Ligada ? "Cadena" : "Rango" });
-        ConfigurarTabla(mapa, new[] { "Bloque", "Propietario", Ligada ? "Siguiente" : "Estado" });
-        tabla.Columns[0].FillWeight = 95;
+        izquierda.Controls.Add(campos, 0, 1);
+
+        var acciones = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3 };
+        for (int i = 0; i < 3; i++)
+            acciones.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / 3));
+        acciones.Controls.Add(Boton("Crear archivo", Crear), 0, 0);
+        acciones.Controls.Add(Boton("Consultar", Consultar), 1, 0);
+        acciones.Controls.Add(Boton("Eliminar", Eliminar), 2, 0);
+        izquierda.Controls.Add(acciones, 0, 2);
+
+        tabla.AllowUserToAddRows = false;
+        tabla.AllowUserToDeleteRows = false;
+        tabla.ReadOnly = true;
+        tabla.RowHeadersVisible = false;
+        tabla.MultiSelect = false;
+        tabla.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+        tabla.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+        tabla.BackgroundColor = Color.White;
+        tabla.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells;
+        tabla.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
+        tabla.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+        tabla.Columns.Add("Nombre", "Archivo");
+        tabla.Columns.Add("Inicio", "Inicio");
+        tabla.Columns.Add("Tamano", "Tamaño");
+        tabla.Columns.Add("Ubicacion", Ligada ? "Cadena de bloques" : "Rango contiguo");
+        tabla.Columns[0].FillWeight = 90;
         tabla.Columns[1].FillWeight = 45;
-        tabla.Columns[2].FillWeight = 50;
-        tabla.Columns[3].FillWeight = 180;
+        tabla.Columns[2].FillWeight = 55;
+        tabla.Columns[3].FillWeight = 150;
         tabla.SelectionChanged += (_, _) =>
         {
             if (actualizando || tabla.SelectedRows.Count == 0) return;
             nombre.Text = Convert.ToString(tabla.SelectedRows[0].Cells[0].Value) ?? "";
             Ver(disco.Consultar(nombre.Text));
         };
-        tablas.Controls.Add(tabla, 0, 0);
-        tablas.Controls.Add(mapa, 1, 0);
-        panel.Controls.Add(tablas, 0, 3);
-        var textos = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
-        textos.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
-        textos.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
-        textos.Controls.Add(detalle, 0, 0);
-        textos.Controls.Add(historial, 1, 0);
-        panel.Controls.Add(textos, 0, 4);
-        var pie = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
-        pie.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        pie.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
-        pie.Controls.Add(resumen, 0, 0);
-        pie.Controls.Add(Boton("Regresar", Close), 1, 0);
-        panel.Controls.Add(pie, 0, 5);
-        Actualizar();
-        Registrar("Disco virtual independiente: 20 bloques libres. No modifica archivos reales.");
+        izquierda.Controls.Add(tabla, 0, 3);
+        izquierda.Controls.Add(detalle, 0, 4);
+
+        var derecha = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Color.White,
+            Padding = new Padding(12),
+            ColumnCount = 1,
+            RowCount = 5,
+            Margin = new Padding(7, 0, 0, 0)
+        };
+        derecha.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+        derecha.RowStyles.Add(new RowStyle(SizeType.Absolute, 185));
+        derecha.RowStyles.Add(new RowStyle(SizeType.Absolute, 55));
+        derecha.RowStyles.Add(new RowStyle(SizeType.Absolute, Ligada ? 62 : 52));
+        derecha.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        centro.Controls.Add(derecha, 1, 0);
+        derecha.Controls.Add(Etiqueta("ESTADO DEL DISCO · BLOQUES 0 AL 19"), 0, 0);
+
+        var mapa = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 10,
+            RowCount = 2,
+            Padding = new Padding(5)
+        };
+        for (int i = 0; i < 10; i++)
+            mapa.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 10));
+        mapa.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+        mapa.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+        for (int i = 0; i < TotalBloques; i++)
+        {
+            bloquesVisuales[i] = new Label
+            {
+                Dock = DockStyle.Fill,
+                Margin = new Padding(2),
+                BorderStyle = BorderStyle.FixedSingle,
+                Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                TextAlign = ContentAlignment.MiddleCenter,
+                AutoEllipsis = true
+            };
+            mapa.Controls.Add(bloquesVisuales[i], i % 10, i / 10);
+        }
+        derecha.Controls.Add(mapa, 0, 1);
+
+        var herramientas = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4 };
+        for (int i = 0; i < 4; i++)
+            herramientas.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
+        herramientas.Controls.Add(Boton("Mostrar disco", MostrarDisco), 0, 0);
+        herramientas.Controls.Add(Boton("Espacio libre", MostrarLibres), 1, 0);
+        herramientas.Controls.Add(Boton("Cargar ejemplo", Ejemplo), 2, 0);
+        herramientas.Controls.Add(Boton("Reiniciar", Reiniciar), 3, 0);
+        derecha.Controls.Add(herramientas, 0, 2);
+        if (Ligada)
+            derecha.Controls.Add(Etiqueta("Cada bloque guarda Siguiente. FIN indica el final de la cadena.\nEl directorio solo guarda inicio y tamaño; no hay un i-nodo."), 0, 3);
+        else
+            derecha.Controls.Add(Boton("Compactar disco", Compactar), 0, 3);
+        derecha.Controls.Add(historial, 0, 4);
     }
 
     private Button Boton(string texto, Action accion)
     {
-        var b = new Button { Text = texto, Dock = DockStyle.Fill, BackColor = Color.FromArgb(187, 205, 182), FlatStyle = FlatStyle.Flat };
+        var b = new Button { Text = texto, Dock = DockStyle.Fill, BackColor = Color.FromArgb(187, 205, 182), FlatStyle = FlatStyle.Flat, ForeColor = verde, Cursor = Cursors.Hand, Margin = new Padding(3, 4, 3, 4) };
         b.Click += (_, _) =>
         {
             try { accion(); }
@@ -131,9 +246,8 @@ public sealed class FrmAsignacionArchivos : Form
         detalle.Text = $"Archivo: {a.Nombre}\r\nInicio: {a.Inicio} | Tamaño: {a.Cantidad} bloques\r\n" + Ruta(a) + "\r\n" +
             (Ligada ? "Consulta secuencial: se parte del inicio y se sigue el puntero de cada bloque hasta FIN."
                     : "Acceso al bloque lógico k: inicio + k, con 0 <= k < tamaño.");
-        foreach (DataGridViewRow fila in mapa.Rows)
-            fila.DefaultCellStyle.BackColor = string.Equals(disco.Propietario(fila.Index), a.Nombre, StringComparison.OrdinalIgnoreCase)
-                ? Color.Khaki : disco.Propietario(fila.Index) == null ? Color.White : Color.FromArgb(187, 205, 182);
+        seleccionado = a.Nombre;
+        ActualizarMapa();
     }
     private void Crear()
     {
@@ -183,17 +297,63 @@ public sealed class FrmAsignacionArchivos : Form
             tabla.Rows.Clear();
             foreach (var a in disco.Archivos) tabla.Rows.Add(a.Nombre, a.Inicio, a.Cantidad, Ruta(a));
             tabla.ClearSelection();
-            mapa.Rows.Clear();
-            for (int i = 0; i < disco.Total; i++)
-            {
-                string? propietario = disco.Propietario(i);
-                mapa.Rows.Add(i, propietario ?? "Libre", propietario == null ? "—" : Ligada ? disco.Siguiente(i)?.ToString() ?? "FIN" : "Ocupado");
-                mapa.Rows[i].DefaultCellStyle.BackColor = propietario == null ? Color.White : Color.FromArgb(187, 205, 182);
-            }
-            mapa.ClearSelection();
+            seleccionado = null;
+            ActualizarMapa();
             resumen.Text = $"Total: 20 | Ocupados: {20 - disco.Libres} | Libres: {disco.Libres} | Mayor hueco: {disco.MayorHueco}";
         }
         finally { actualizando = false; }
     }
-    private void Registrar(string mensaje) => historial.Items.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {mensaje}");
+    private void ActualizarMapa()
+    {
+        for (int i = 0; i < disco.Total; i++)
+        {
+            string? propietario = disco.Propietario(i);
+            bloquesVisuales[i].Text = $"{i:00}\n{propietario ?? "Libre"}" +
+                (Ligada && propietario != null ? $"\n→ {disco.Siguiente(i)?.ToString("00") ?? "FIN"}" : "");
+            bloquesVisuales[i].BackColor = propietario == null ? Color.FromArgb(236, 239, 234) :
+                string.Equals(propietario, seleccionado, StringComparison.OrdinalIgnoreCase) ? Color.Khaki : verdeClaro;
+            bloquesVisuales[i].ForeColor = verde;
+        }
+    }
+
+    private void MostrarLibres()
+    {
+        string mensaje = $"Hay {disco.Libres} bloques libres de 20. Mayor hueco: {disco.MayorHueco}.";
+        Registrar(mensaje);
+        MessageBox.Show(this, mensaje, "Espacio disponible", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    private void MostrarDisco()
+    {
+        using var ventana = new Form
+        {
+            Text = "AMS.OS - Detalle del disco virtual", StartPosition = FormStartPosition.CenterParent,
+            ClientSize = new Size(760, 620), MinimumSize = new Size(640, 520), BackColor = fondo, Font = Font
+        };
+        var panel = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(16), ColumnCount = 1, RowCount = 3 };
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));
+        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
+        panel.Controls.Add(Etiqueta(Ligada ? "LISTA LIGADA: cada bloque almacena su enlace Siguiente." : "CONTIGUA: directorio con inicio + cantidad de bloques."), 0, 0);
+        var tablaDisco = new DataGridView();
+        ConfigurarTabla(tablaDisco, new[] { "Bloque", "Estado", "Archivo propietario", Ligada ? "Siguiente" : "Ubicación" });
+        for (int i = 0; i < disco.Total; i++)
+        {
+            var propietario = disco.Propietario(i);
+            tablaDisco.Rows.Add(i, propietario == null ? "Libre" : "Ocupado", propietario ?? "—",
+                propietario == null ? "—" : Ligada ? disco.Siguiente(i)?.ToString() ?? "FIN" : Ruta(disco.Consultar(propietario)));
+            tablaDisco.Rows[i].DefaultCellStyle.BackColor = propietario == null ? Color.White : verdeClaro;
+        }
+        tablaDisco.ClearSelection();
+        panel.Controls.Add(tablaDisco, 0, 1);
+        panel.Controls.Add(Boton("Regresar al simulador", ventana.Close), 0, 2);
+        ventana.Controls.Add(panel);
+        ventana.ShowDialog(this);
+    }
+
+    private void Registrar(string mensaje)
+    {
+        historial.Items.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {mensaje}");
+        lblEstado.Text = mensaje;
+    }
 }
