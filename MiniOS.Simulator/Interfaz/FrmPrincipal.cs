@@ -763,10 +763,14 @@ public sealed class FrmPrincipal : Form
         };
         var opciones = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, Padding = new Padding(18), ColumnCount = 1, RowCount = 5
+            Anchor = AnchorStyles.None, Padding = new Padding(18), ColumnCount = 1, RowCount = 5
         };
         for (int i = 0; i < 5; i++) opciones.RowStyles.Add(new RowStyle(SizeType.Percent, 20));
-        opciones.Controls.Add(Texto("Discos virtuales independientes de 20 bloques", 12, true), 0, 0);
+        var titulo = Texto("Discos virtuales independientes de 20 bloques", 12, true);
+        titulo.AutoSize = false;
+        titulo.Dock = DockStyle.Fill;
+        titulo.TextAlign = ContentAlignment.MiddleCenter;
+        opciones.Controls.Add(titulo, 0, 0);
         void Abrir(MetodoAsignacion metodo)
         {
             Registrar($"Simulador de asignación {metodo} abierto.");
@@ -780,7 +784,24 @@ public sealed class FrmPrincipal : Form
         opciones.Controls.Add(BotonSecundario("2. Asignación por listas ligadas", () => Abrir(MetodoAsignacion.Ligada)), 0, 2);
         opciones.Controls.Add(BotonSecundario("3. Asignación por i-nodos", AbrirAsignacionINodos), 0, 3);
         opciones.Controls.Add(BotonSecundario("Regresar", () => menu.Close()), 0, 4);
+        // El menú conserva un tamaño legible al maximizar la ventana.
+        // Solo el espacio exterior crece; las opciones permanecen juntas y centradas.
+        foreach (Control control in opciones.Controls)
+            if (control is Button boton) boton.Dock = DockStyle.Fill;
         menu.Controls.Add(opciones);
+        void CentrarOpciones()
+        {
+            float escala = menu.DeviceDpi / 96f;
+            int ancho = Math.Min(menu.ClientSize.Width, (int)(720 * escala));
+            int alto = Math.Min(menu.ClientSize.Height, (int)(340 * escala));
+            opciones.Bounds = new Rectangle(
+                Math.Max(0, (menu.ClientSize.Width - ancho) / 2),
+                Math.Max(0, (menu.ClientSize.Height - alto) / 2), ancho, alto);
+        }
+        menu.ClientSizeChanged += (_, _) => CentrarOpciones();
+        menu.DpiChanged += (_, _) => CentrarOpciones();
+        menu.Shown += (_, _) => CentrarOpciones();
+        CentrarOpciones();
         menu.ShowDialog(this);
     }
 
