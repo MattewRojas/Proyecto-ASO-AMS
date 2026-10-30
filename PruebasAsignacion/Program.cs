@@ -36,14 +36,14 @@ foreach (var metodo in Enum.GetValues<MetodoAsignacion>())
     Verificar(d.Consultar(" a ").Nombre == "A", "Consulta Trim");
     d.Eliminar("B"); d.Eliminar("D");
     Verificar(d.Libres == 8 && d.MayorHueco == 4, "Fragmentación");
-    if (metodo == MetodoAsignacion.Contigua)
+    if (metodo == MetodoAsignacion.Continua)
     {
         Rechaza(() => d.Crear("F", 6), "Rechazo por fragmentación");
         Verificar(d.Libres == 8 && d.Archivos.Count() == 3, "Fallo atómico");
         d.Compactar();
         Verificar(d.Libres == 8 && d.MayorHueco == 8 && d.Consultar("C").Inicio == 4, "Compactación");
         var f = d.Crear("F", 6);
-        Verificar(d.Recorrer(f).SequenceEqual(Enumerable.Range(12, 6)), "Bloques contiguos");
+        Verificar(d.Recorrer(f).SequenceEqual(Enumerable.Range(12, 6)), "Bloques consecutivos");
     }
     else
     {
@@ -63,7 +63,7 @@ foreach (var metodo in Enum.GetValues<MetodoAsignacion>())
     {
         if (d.Archivos.Any() && random.Next(3) == 0) d.Eliminar(d.Archivos.First().Nombre);
         else { try { d.Crear("Archivo" + i, random.Next(1, 9)); } catch (InvalidOperationException) { } }
-        if (metodo == MetodoAsignacion.Contigua && i % 10 == 0) d.Compactar();
+        if (metodo == MetodoAsignacion.Continua && i % 10 == 0) d.Compactar();
         Integridad(d);
     }
 }

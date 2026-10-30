@@ -3,7 +3,7 @@ using System.Windows.Forms;
 
 namespace MiniOS.Simulator;
 
-public sealed class FrmAsignacionContigua : Form
+public sealed class FrmAsignacionContinua : Form
 {
     private readonly DiscoAsignacion disco;
     private readonly TextBox nombre = new() { Dock = DockStyle.Fill };
@@ -14,10 +14,10 @@ public sealed class FrmAsignacionContigua : Form
     private readonly Label resumen = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft };
     private bool actualizando;
 
-    public FrmAsignacionContigua()
+    public FrmAsignacionContinua()
     {
-        disco = new DiscoAsignacion(MetodoAsignacion.Contigua);
-        Text = "AMS.OS - Asignación " + ("contigua / adyacente");
+        disco = new DiscoAsignacion(MetodoAsignacion.Continua);
+        Text = "AMS.OS - Asignación " + ("continua / adyacente");
         StartPosition = FormStartPosition.CenterParent;
         ClientSize = new Size(1250, 790);
         MinimumSize = new Size(1080, 720);
@@ -56,7 +56,7 @@ public sealed class FrmAsignacionContigua : Form
 
         principal.Controls.Add(new Label
         {
-            Text = "ASIGNACIÓN CONTIGUA / ADYACENTE · ALGORITMO 1",
+            Text = "ASIGNACIÓN CONTINUA / ADYACENTE · ALGORITMO 1",
             Dock = DockStyle.Fill,
             ForeColor = verde,
             Font = new Font("Segoe UI", 17, FontStyle.Bold),
@@ -133,7 +133,7 @@ public sealed class FrmAsignacionContigua : Form
         tabla.Columns.Add("Nombre", "Archivo");
         tabla.Columns.Add("Inicio", "Inicio");
         tabla.Columns.Add("Tamano", "Tamaño");
-        tabla.Columns.Add("Ubicacion", "Rango contiguo");
+        tabla.Columns.Add("Ubicacion", "Rango consecutivo");
         tabla.Columns[0].FillWeight = 90;
         tabla.Columns[1].FillWeight = 45;
         tabla.Columns[2].FillWeight = 55;
@@ -326,7 +326,7 @@ public sealed class FrmAsignacionContigua : Form
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
-        panel.Controls.Add(Etiqueta("CONTIGUA: directorio con inicio + cantidad de bloques."), 0, 0);
+        panel.Controls.Add(Etiqueta("CONTINUA: directorio con inicio + cantidad de bloques."), 0, 0);
         var tablaDisco = new DataGridView();
         ConfigurarTabla(tablaDisco, new[] { "Bloque", "Estado", "Archivo propietario", "Ubicación" });
         for (int i = 0; i < disco.Total; i++)

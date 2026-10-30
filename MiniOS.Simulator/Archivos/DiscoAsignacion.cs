@@ -1,6 +1,6 @@
 namespace MiniOS.Simulator;
 
-public enum MetodoAsignacion { Contigua, Ligada }
+public enum MetodoAsignacion { Continua, Ligada }
 
 // Modelo didáctico: un bloque guarda propietario y, en asignación ligada, el enlace.
 // No accede al sistema de archivos del equipo.
@@ -59,7 +59,7 @@ public sealed class DiscoAsignacion
         if (cantidad > Libres) throw new InvalidOperationException($"Espacio insuficiente: necesita {cantidad} bloques y hay {Libres} libres.");
 
         int[] bloques;
-        if (Metodo == MetodoAsignacion.Contigua)
+        if (Metodo == MetodoAsignacion.Continua)
         {
             int inicio = -1, consecutivos = 0;
             for (int i = 0; i < Total; i++)
@@ -85,7 +85,7 @@ public sealed class DiscoAsignacion
 
     public IReadOnlyList<int> Recorrer(Entrada archivo)
     {
-        if (Metodo == MetodoAsignacion.Contigua)
+        if (Metodo == MetodoAsignacion.Continua)
             return Enumerable.Range(archivo.Inicio, archivo.Cantidad).ToArray();
         // Lista temporal para mostrar/validar el recorrido; NO se almacena en el directorio.
         var ruta = new List<int>();
@@ -113,7 +113,7 @@ public sealed class DiscoAsignacion
 
     public void Compactar()
     {
-        if (Metodo != MetodoAsignacion.Contigua) throw new InvalidOperationException("La compactación solo se aplica a esta simulación contigua.");
+        if (Metodo != MetodoAsignacion.Continua) throw new InvalidOperationException("La compactación solo se aplica a esta simulación continua.");
         var orden = Archivos.ToArray();
         Array.Clear(propietarios);
         int posicion = 0;

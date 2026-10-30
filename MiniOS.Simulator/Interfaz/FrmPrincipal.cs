@@ -770,13 +770,13 @@ public sealed class FrmPrincipal : Form
         void Abrir(MetodoAsignacion metodo)
         {
             Registrar($"Simulador de asignación {metodo} abierto.");
-            using Form ventana = metodo == MetodoAsignacion.Contigua
-                ? new FrmAsignacionContigua()
+            using Form ventana = metodo == MetodoAsignacion.Continua
+                ? new FrmAsignacionContinua()
                 : new FrmAsignacionLigada();
             ventana.ShowDialog(menu);
             Registrar($"Simulador de asignación {metodo} cerrado.");
         }
-        opciones.Controls.Add(BotonSecundario("1. Asignación contigua / adyacente", () => Abrir(MetodoAsignacion.Contigua)), 0, 1);
+        opciones.Controls.Add(BotonSecundario("1. Asignación continua / adyacente", () => Abrir(MetodoAsignacion.Continua)), 0, 1);
         opciones.Controls.Add(BotonSecundario("2. Asignación por listas ligadas", () => Abrir(MetodoAsignacion.Ligada)), 0, 2);
         opciones.Controls.Add(BotonSecundario("3. Asignación por i-nodos", AbrirAsignacionINodos), 0, 3);
         opciones.Controls.Add(BotonSecundario("Regresar", () => menu.Close()), 0, 4);
