@@ -770,7 +770,9 @@ public sealed class FrmPrincipal : Form
         void Abrir(MetodoAsignacion metodo)
         {
             Registrar($"Simulador de asignación {metodo} abierto.");
-            using var ventana = new FrmAsignacionArchivos(metodo);
+            using Form ventana = metodo == MetodoAsignacion.Contigua
+                ? new FrmAsignacionContigua()
+                : new FrmAsignacionLigada();
             ventana.ShowDialog(menu);
             Registrar($"Simulador de asignación {metodo} cerrado.");
         }

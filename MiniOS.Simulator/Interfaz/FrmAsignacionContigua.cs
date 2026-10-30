@@ -3,7 +3,7 @@ using System.Windows.Forms;
 
 namespace MiniOS.Simulator;
 
-public sealed class FrmAsignacionArchivos : Form
+public sealed class FrmAsignacionContigua : Form
 {
     private readonly DiscoAsignacion disco;
     private readonly TextBox nombre = new() { Dock = DockStyle.Fill };
@@ -13,12 +13,11 @@ public sealed class FrmAsignacionArchivos : Form
     private readonly ListBox historial = new() { Dock = DockStyle.Fill, HorizontalScrollbar = true };
     private readonly Label resumen = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft };
     private bool actualizando;
-    private bool Ligada => disco.Metodo == MetodoAsignacion.Ligada;
 
-    public FrmAsignacionArchivos(MetodoAsignacion metodo)
+    public FrmAsignacionContigua()
     {
-        disco = new DiscoAsignacion(metodo);
-        Text = "AMS.OS - Asignación " + (Ligada ? "por listas ligadas" : "contigua / adyacente");
+        disco = new DiscoAsignacion(MetodoAsignacion.Contigua);
+        Text = "AMS.OS - Asignación " + ("contigua / adyacente");
         StartPosition = FormStartPosition.CenterParent;
         ClientSize = new Size(1250, 790);
         MinimumSize = new Size(1080, 720);
@@ -57,7 +56,7 @@ public sealed class FrmAsignacionArchivos : Form
 
         principal.Controls.Add(new Label
         {
-            Text = Ligada ? "ASIGNACIÓN POR LISTAS LIGADAS · ALGORITMO 2" : "ASIGNACIÓN CONTIGUA / ADYACENTE · ALGORITMO 1",
+            Text = "ASIGNACIÓN CONTIGUA / ADYACENTE · ALGORITMO 1",
             Dock = DockStyle.Fill,
             ForeColor = verde,
             Font = new Font("Segoe UI", 17, FontStyle.Bold),
@@ -134,7 +133,7 @@ public sealed class FrmAsignacionArchivos : Form
         tabla.Columns.Add("Nombre", "Archivo");
         tabla.Columns.Add("Inicio", "Inicio");
         tabla.Columns.Add("Tamano", "Tamaño");
-        tabla.Columns.Add("Ubicacion", Ligada ? "Cadena de bloques" : "Rango contiguo");
+        tabla.Columns.Add("Ubicacion", "Rango contiguo");
         tabla.Columns[0].FillWeight = 90;
         tabla.Columns[1].FillWeight = 45;
         tabla.Columns[2].FillWeight = 55;
@@ -160,7 +159,7 @@ public sealed class FrmAsignacionArchivos : Form
         derecha.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
         derecha.RowStyles.Add(new RowStyle(SizeType.Absolute, 185));
         derecha.RowStyles.Add(new RowStyle(SizeType.Absolute, 55));
-        derecha.RowStyles.Add(new RowStyle(SizeType.Absolute, Ligada ? 62 : 52));
+        derecha.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
         derecha.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         centro.Controls.Add(derecha, 1, 0);
         derecha.Controls.Add(Etiqueta("ESTADO DEL DISCO · BLOQUES 0 AL 19"), 0, 0);
@@ -199,10 +198,7 @@ public sealed class FrmAsignacionArchivos : Form
         herramientas.Controls.Add(Boton("Cargar ejemplo", Ejemplo), 2, 0);
         herramientas.Controls.Add(Boton("Reiniciar", Reiniciar), 3, 0);
         derecha.Controls.Add(herramientas, 0, 2);
-        if (Ligada)
-            derecha.Controls.Add(Etiqueta("Cada bloque guarda Siguiente. FIN indica el final de la cadena.\nEl directorio solo guarda inicio y tamaño; no hay un i-nodo."), 0, 3);
-        else
-            derecha.Controls.Add(Boton("Compactar disco", Compactar), 0, 3);
+        derecha.Controls.Add(Boton("Compactar disco", Compactar), 0, 3);
         derecha.Controls.Add(historial, 0, 4);
     }
 
@@ -237,15 +233,13 @@ public sealed class FrmAsignacionArchivos : Form
         foreach (var titulo in columnas) grid.Columns.Add(titulo, titulo);
     }
 
-    private string Ruta(DiscoAsignacion.Entrada a) => Ligada
-        ? string.Join(" → ", disco.Recorrer(a)) + " → FIN"
-        : $"{a.Inicio} a {a.Inicio + a.Cantidad - 1}";
+    private string Ruta(DiscoAsignacion.Entrada a) =>
+        $"{a.Inicio} a {a.Inicio + a.Cantidad - 1}";
 
     private void Ver(DiscoAsignacion.Entrada a)
     {
         detalle.Text = $"Archivo: {a.Nombre}\r\nInicio: {a.Inicio} | Tamaño: {a.Cantidad} bloques\r\n" + Ruta(a) + "\r\n" +
-            (Ligada ? "Consulta secuencial: se parte del inicio y se sigue el puntero de cada bloque hasta FIN."
-                    : "Acceso al bloque lógico k: inicio + k, con 0 <= k < tamaño.");
+            ("Acceso al bloque lógico k: inicio + k, con 0 <= k < tamaño.");
         seleccionado = a.Nombre;
         ActualizarMapa();
     }
@@ -280,8 +274,7 @@ public sealed class FrmAsignacionArchivos : Form
         disco.Eliminar("B.txt"); disco.Eliminar("D.txt");
         Actualizar(); nombre.Text = "F.txt"; cantidad.Value = 6;
         detalle.Text = "8 bloques libres: 4–7 y 12–15. Intente crear F.txt con 6 bloques.\r\n" +
-            (Ligada ? "Usará 4 → 5 → 6 → 7 → 12 → 13 → FIN."
-                    : "No existe un hueco de 6 bloques. Pulse Compactar y vuelva a crear F.txt.");
+            ("No existe un hueco de 6 bloques. Pulse Compactar y vuelva a crear F.txt.");
         Registrar("Ejemplo: 12 ocupados, 8 libres, mayor hueco de 4 bloques.");
     }
     private void Reiniciar()
@@ -308,8 +301,7 @@ public sealed class FrmAsignacionArchivos : Form
         for (int i = 0; i < disco.Total; i++)
         {
             string? propietario = disco.Propietario(i);
-            bloquesVisuales[i].Text = $"{i:00}\n{propietario ?? "Libre"}" +
-                (Ligada && propietario != null ? $"\n→ {disco.Siguiente(i)?.ToString("00") ?? "FIN"}" : "");
+            bloquesVisuales[i].Text = $"{i:00}\n{propietario ?? "Libre"}";
             bloquesVisuales[i].BackColor = propietario == null ? Color.FromArgb(236, 239, 234) :
                 string.Equals(propietario, seleccionado, StringComparison.OrdinalIgnoreCase) ? Color.Khaki : verdeClaro;
             bloquesVisuales[i].ForeColor = verde;
@@ -334,14 +326,14 @@ public sealed class FrmAsignacionArchivos : Form
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
-        panel.Controls.Add(Etiqueta(Ligada ? "LISTA LIGADA: cada bloque almacena su enlace Siguiente." : "CONTIGUA: directorio con inicio + cantidad de bloques."), 0, 0);
+        panel.Controls.Add(Etiqueta("CONTIGUA: directorio con inicio + cantidad de bloques."), 0, 0);
         var tablaDisco = new DataGridView();
-        ConfigurarTabla(tablaDisco, new[] { "Bloque", "Estado", "Archivo propietario", Ligada ? "Siguiente" : "Ubicación" });
+        ConfigurarTabla(tablaDisco, new[] { "Bloque", "Estado", "Archivo propietario", "Ubicación" });
         for (int i = 0; i < disco.Total; i++)
         {
             var propietario = disco.Propietario(i);
             tablaDisco.Rows.Add(i, propietario == null ? "Libre" : "Ocupado", propietario ?? "—",
-                propietario == null ? "—" : Ligada ? disco.Siguiente(i)?.ToString() ?? "FIN" : Ruta(disco.Consultar(propietario)));
+                propietario == null ? "—" : Ruta(disco.Consultar(propietario)));
             tablaDisco.Rows[i].DefaultCellStyle.BackColor = propietario == null ? Color.White : verdeClaro;
         }
         tablaDisco.ClearSelection();
